@@ -1,0 +1,137 @@
+**System Context for Cursor:**
+You are an expert high-performance systems engineer building "Aether-Decoders", a bare-metal Union-Find Quantum Error Correction decoder written in Rust. Your goal is to map continuous topological equations into a discrete, integer-based state machine optimized for $O(1)$ cache locality.
+
+Do NOT use pointer-based graph libraries (like `petgraph`) or Object-Oriented node references (`Rc<RefCell<Node>>`). You must use flat `Vec` memory structures.
+
+Follow this exact sequential implementation plan. Do not skip any steps. Write production-ready, heavily documented Rust code.
+
+## Phase 1: Project Setup & Types
+
+Create a new Rust library project. Define the core data structures using zero-cost abstractions.
+
+**1. Create `src/types.rs`:**
+
+* Define a strong type for Node and Edge indices: `pub type NodeId = usize;`, `pub type EdgeId = usize;`
+* Define `#[derive(PartialEq)] pub enum EdgeState { Empty, Solid }`
+
+**2. Create `src/graph.rs`:**
+Implement the `DecoderGraph` struct using Struct-of-Arrays (SoA) or flat arrays.
+
+```rust
+pub struct DecoderGraph {
+    // Node Data (Index is NodeId)
+    pub parent: Vec<NodeId>,
+    pub parity: Vec<u8>, // 1 if active defect, 0 if neutral
+    pub size: Vec<u32>,  // For Union-by-size
+
+    // Edge Data (Index is EdgeId)
+    pub edge_u: Vec<NodeId>,
+    pub edge_v: Vec<NodeId>,
+    pub capacity: Vec<u32>, // Scaled by 2 to avoid floating point math
+    pub growth: Vec<u32>,
+    pub state: Vec<EdgeState>,
+    
+    pub total_active_parity: usize, // Tracks if system is neutral
+}
+
+```
+
+* Implement a `new()` function to initialize the graph with fixed capacities.
+
+## Phase 2: Disjoint-Set Union (DSU) Logic
+
+Implement the DSU methods directly on `DecoderGraph` in `src/dsu.rs`.
+
+**1. `pub fn find(&mut self, u: NodeId) -> NodeId**`
+
+* Implement iterative (not recursive) path compression. Trace up `self.parent[u]` until `parent[root] == root`. Do a second pass to point all traversed nodes directly to `root`.
+
+**2. `pub fn union(&mut self, u: NodeId, v: NodeId)**`
+
+* Find roots `root_u` and `root_v`. If they are the same, return.
+* Enforce Union-by-Size: attach the smaller tree to the larger tree's root.
+* **CRITICAL MATH STEP (Quantum Parity XOR):**
+* The new root's parity becomes `parity[root_u] ^ parity[root_v]`.
+* The child root's parity becomes `0`.
+* If the parity of the new root became `0` and they were both `1` previously, decrement `self.total_active_parity` by 2 (since two odd clusters neutralized).
+
+
+
+## Phase 3: The Discrete Time-Evolution Engine
+
+Create `src/engine.rs`. This implements the core growth loop.
+
+**1. `pub fn step_growth(&mut self)**`
+
+* Iterate over all edges.
+* For each edge $e = (u, v)$, find roots $r_u$ and $r_v$.
+* Calculate delta: `let delta = self.parity[r_u] + self.parity[r_v];`
+* Add delta to `self.growth[e]`.
+
+**2. `pub fn step_merge(&mut self)**`
+
+* Iterate over all edges where `state[e] == EdgeState::Empty`.
+* If `self.growth[e] >= self.capacity[e]`:
+* Set `state[e] = EdgeState::Solid`.
+* Call `self.union(u, v)`.
+
+
+
+**3. `pub fn decode_to_neutral(&mut self)**`
+
+* Loop: `while self.total_active_parity > 0` { `step_growth()`; `step_merge()`; }
+
+## Phase 4: Spanning Forest & Peeling Solver
+
+Create `src/peeling.rs`. This translates the solid edges into exact physical corrections.
+
+**1. `pub fn extract_forest(&self) -> Vec<Vec<(NodeId, EdgeId)>>**`
+
+* Build an adjacency list, but *only* include edges where `state[e] == EdgeState::Solid`.
+* Run BFS to remove cycles, returning a strict Tree/Forest (no loops).
+
+**2. `pub fn peel(&self, forest: &Vec<Vec<(NodeId, EdgeId)>>) -> Vec<EdgeId>**`
+
+* **Input:** The cycle-free forest.
+* **Setup:** Clone the initial `self.parity` state into a `current_syndrome` array. Calculate the degree of every node in the forest.
+* **Queue:** Create a queue and push all nodes where `degree == 1` (Leaves).
+* **Execution Loop:**
+* Pop leaf `u`. Find its unique active edge `e` connecting to parent `p`.
+* If `current_syndrome[u] == 1`:
+* Add `e` to the `corrections` output vector.
+
+
+* XOR the parent's syndrome: `current_syndrome[p] ^= current_syndrome[u];`
+* Decrement degree of `p`. If `degree[p] == 1`, push `p` to the queue.
+
+
+* **Output:** Return the `corrections` vector.
+
+## Phase 5: Comprehensive Testing Suite
+
+Create `tests/integration_tests.rs`. You must write the following test cases to prove mathematical correctness.
+
+**Test 1: Simple 2-Node Graph (Direct Merge)**
+
+* Nodes: A(parity=1), B(parity=1). Edge: A-B (Capacity 10).
+* *Expectation:* `decode_to_neutral()` takes exactly 5 loops (since delta=2 per loop). `peel()` returns the A-B edge.
+
+**Test 2: 3-Node Line Graph (Chain Resolution)**
+
+* Nodes: A(1), B(0), C(1). Edges: A-B(10), B-C(10).
+* *Expectation:* A grows towards B, C grows towards B. They both solidify at step 10. `peel()` returns both A-B and B-C.
+
+**Test 3: 4-Node Cycle (Cycle Breaking)**
+
+* Nodes: A(1), B(0), C(0), D(1). Square topology. All capacities = 10.
+* *Expectation:* Forest extraction MUST break the cycle. Peeling must resolve the defects to 0 without getting stuck in an infinite loop.
+
+**Test 4: Mathematical Invariant Check**
+
+* Write a helper function `verify_syndrome(original_parities, corrections_list, edge_definitions)`.
+* It applies the edge corrections to an empty syndrome vector via XOR.
+* Assert that the final vector perfectly matches `original_parities`.
+
+**Final instruction for Cursor:** Begin by initializing the Cargo project and outputting `src/types.rs` and `src/graph.rs`. Ask for my approval before moving to Phase 2.
+
+---

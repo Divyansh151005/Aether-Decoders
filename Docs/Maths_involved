@@ -1,0 +1,170 @@
+To understand decoding algorithms like **Minimum-Weight Perfect Matching (MWPM)** and **Union-Find (UF)**, we must examine the formal mathematical machinery of **Quantum Stabilizer Codes**, **Maximum A Posteriori (MAP) estimation**, **Integer Linear Programming (ILP)**, and **Homology**.
+
+---
+
+## 1. The Quantum Stabilizer Formalism & Error Model
+
+### Linear Algebra over $\mathbb{F}_2$
+
+Let $\mathcal{H} = (\mathbb{C}^2)^{\otimes n}$ be the Hilbert space of $n$ physical qubits. The **$n$-qubit Pauli Group** $\mathcal{P}_n$ consists of tensor products of Pauli operators:
+
+$$\mathcal{P}_n = \{ \pm 1, \pm i \} \times \{I, X, Y, Z\}^{\otimes n}$$
+
+A **Stabilizer Code** $\mathcal{C}$ is defined by an $n-k$ generator abelian subgroup $\mathcal{S} \subset \mathcal{P}_n$ such that $-I \notin \mathcal{S}$. The code space $\mathcal{C}$ is the simultaneous $+1$-eigenspace of all operators in $\mathcal{S}$:
+
+$$\mathcal{C} = \Big\{ \vert{}\psi\rangle \in \mathcal{H} \;:\; S_i \vert{}\psi\rangle = \vert{}\psi\rangle, \quad \forall S_i \in \mathcal{S} \Big\}$$
+
+When an error $E \in \mathcal{P}_n$ occurs on state $\vert{}\psi\rangle \in \mathcal{C}$, measuring the stabilizer generators $\{S_1, S_2, \dots, S_m\}$ (where $m = n-k$) yields a binary **syndrome vector** $\mathbf{s} = (s_1, s_2, \dots, s_m)^T \in \mathbb{F}_2^m$:
+
+$$s_i = \begin{cases} 0, & \text{if } [S_i, E] = 0 \quad \text{(Commute)} \\ 1, & \text{if } \{S_i, E\} = 0 \quad \text{(Anti-commute)} \end{cases}$$
+
+### The Parity-Check Matrix
+
+By mapping Pauli operators to binary vectors via $X^a Z^b \mapsto (a \mid b) \in \mathbb{F}_2^{2n}$, we represent any error $E$ as a vector $\mathbf{e} \in \mathbb{F}_2^{2n}$. The commutation relations yield a classical linear system over $\mathbb{F}_2$:
+
+$$H \mathbf{e} \equiv \mathbf{s} \pmod 2$$
+
+where $H \in \mathbb{F}_2^{m \times 2n}$ is the parity-check matrix of the quantum code.
+
+---
+
+## 2. Mathematical Formulation of the Decoding Problem
+
+Given an observed syndrome $\mathbf{s} \in \mathbb{F}_2^m$, the decoder must output an estimated correction $\hat{\mathbf{e}} \in \mathbb{F}_2^{2n}$ such that $H \hat{\mathbf{e}} = \mathbf{s}$.
+
+### Maximum A Posteriori (MAP) Decoding
+
+Assuming independent physical errors where qubit $j$ suffers an error with probability $p_j < 0.5$, the probability of error vector $\mathbf{e}$ is:
+
+$$P(\mathbf{e}) = \prod_{j=1}^{2n} p_j^{e_j} (1 - p_j)^{1 - e_j}$$
+
+The optimal MAP decoder maximizes the posterior probability:
+
+$$\hat{\mathbf{e}} = \arg\max_{\mathbf{e} \in \mathbb{F}_2^{2n}: H\mathbf{e} = \mathbf{s}} P(\mathbf{e})$$
+
+Taking the negative logarithm yields an equivalent weight minimization problem:
+
+$$-\ln P(\mathbf{e}) = \sum_{j=1}^{2n} e_j \ln \left( \frac{1 - p_j}{p_j} \right) - \sum_{j=1}^{2n} \ln(1 - p_j)$$
+
+Defining the edge weights $w_j = \ln \left( \frac{1 - p_j}{p_j} \right) > 0$, the MAP decoding problem maps to finding the **minimum-weight error error string**:
+
+$$\hat{\mathbf{e}} = \arg\min_{\mathbf{e}: H\mathbf{e} = \mathbf{s}} \sum_{j=1}^{2n} w_j e_j$$
+
+For identical error rates ($p_j = p$), this reduces to finding $\mathbf{e}$ that minimizes the **Hamming weight** $\vert{}\mathbf{e}\vert{} = \sum e_j$.
+
+---
+
+## 3. Minimum-Weight Perfect Matching (MWPM) Mathematics
+
+MWPM transforms the linear algebraic problem over $\mathbb{F}_2$ into a graph optimization problem.
+
+### Graph Construction
+
+Let $V_s = \{ v \in \{1,\dots,m\} : s_v = 1 \}$ be the set of defect vertices. We construct a complete graph $G_M = (V_M, E_M, w)$ where $V_M = V_s \cup V_{\text{boundary}}$.
+
+The weight $w(u,v)$ between any two defect nodes $u, v \in V_M$ is defined by the shortest-path metric on the dual lattice:
+
+$$w(u,v) = \min_{P \in \text{Paths}(u,v)} \sum_{j \in P} w_j$$
+
+### Integer Linear Program (ILP)
+
+Finding the optimal pairing of defects is formulated as a **0-1 Integer Linear Program**:
+
+$$\min_{\mathbf{x}} \sum_{(u,v) \in E_M} w(u,v) x_{uv}$$
+
+$$\text{subject to } \sum_{v \in V_M} x_{uv} = 1, \quad \forall u \in V_M \quad \text{(Perfect Matching Constraint)}$$
+
+$$x_{uv} \in \{0, 1\}, \quad \forall (u,v) \in E_M$$
+
+### LP Duality and Edmonds' Blossom Algorithm
+
+Because integer linear programming is generally NP-hard, Edmonds' algorithm relaxes the integer constraint to $x_{uv} \ge 0$ and solves its **Dual Linear Program**:
+
+$$\max_{\mathbf{y}, \mathbf{Y}} \sum_{u \in V_M} y_u + \sum_{B \in \mathcal{B}} Y_B$$
+
+$$\text{subject to } y_u + y_v + \sum_{B : (u,v) \in \delta(B)} Y_B \le w(u,v), \quad \forall (u,v) \in E_M$$
+
+where $y_u \in \mathbb{R}$ are vertex potentials, $\mathcal{B}$ is the set of all odd-cardinality subsets of $V_M$ ($\vert{}B\vert{} \ge 3$, called **blossoms**), $Y_B \ge 0$ are blossom potentials, and $\delta(B)$ is the edge cut of $B$.
+
+* **Blossom Contraction:** When an odd cycle of tight constraints $y_u + y_v = w(u,v)$ forms, the algorithm contracts the set of nodes $B$ into a single pseudo-node $v_B$.
+* This contraction prevents fractional solutions ($x_{uv} = 0.5$) and guarantees an exact integral solution in $O(\vert{}V_M\vert{}^3)$ time.
+
+---
+
+## 4. Union-Find (UF) Decoding Mathematics
+
+Union-Find bypasses global graph construction and $O(V_M^3)$ Blossom LP optimization by solving cluster growth and path extraction locally.
+
+Given a graph $G = (V, E)$ defined by the physical qubit layout, defects are nodes $v \in V$ with $s_v = 1$.
+
+### Cluster Parity Dynamics
+
+Let $C \subseteq V$ be a connected subgraph (a cluster). Define the **syndrome parity function** $\pi(C)$:
+
+$$\pi(C) = \left( \sum_{v \in C} s_v \right) \pmod 2$$
+
+* $\pi(C) = 1 \implies C$ is an **odd (active) cluster** (contains an un-matched defect).
+* $\pi(C) = 0 \implies C$ is an **even (neutral) cluster** (defects inside $C$ can be mutually paired).
+
+### Continuous Half-Edge Expansion Equation
+
+Let $x_e \in \left[0, 1\right]$ represent the grown fraction of physical edge $e = (u,v) \in E$. Initially, $x_e(0) = 0$.
+
+At step $t + 1$, edge growth updates according to:
+
+$$x_e(t+1) = x_e(t) + \frac{1}{2} \cdot \mathbf{1}_{\big\{ \exists C \text{ s.t. } e \in \delta(C) \text{ and } \pi(C)=1 \big\}}$$
+
+where $\delta(C) = \{ (u,v) \in E : u \in C, v \notin C \}$ is the boundary edge cut of cluster $C$.
+
+An edge $e$ is declared **fully grown (solid)** when $x_e = 1$. When two active clusters $C_1, C_2$ grow along the same edge $e$ such that $x_e \ge 1$, they merge via the **Disjoint-Set Union (DSU)** operation:
+
+$$C_{\text{new}} = C_1 \cup C_2, \qquad \pi(C_{\text{new}}) = \big( \pi(C_1) + \pi(C_2) \big) \pmod 2$$
+
+Growth halts at step $T$ when $\pi(C) = 0$ for all clusters $C$.
+
+### The Peeling Algorithm (Tree Traversal Over $\mathbb{F}_2$)
+
+Once all clusters are neutral, a spanning forest $F = (V, E_{\text{solid}})$ is constructed from the fully grown edges $E_{\text{solid}} = \{ e \in E : x_e = 1 \}$. The correction chain $\hat{\mathbf{e}}$ is extracted deterministically using the **Peeling Algorithm**:
+
+1. Find a leaf node $u \in V$ in $F$ connected by a unique edge $e = (u, p)$ to its parent $p$.
+2. Set edge correction status:
+
+$$\hat{e}_e = s_u$$
+
+
+3. Update parent syndrome:
+
+$$s_p \leftarrow (s_p \oplus s_u)$$
+
+
+4. Set $s_u \leftarrow 0$, remove node $u$ and edge $e$ from $F$, and repeat recursively until $F = \emptyset$.
+
+This guarantees $H \hat{\mathbf{e}} \equiv \mathbf{s} \pmod 2$ in $O(\vert{}E_{\text{solid}}\vert{}) \le O(\vert{}V\vert{})$ operations.
+
+---
+
+## 5. Topological & Homological Perspective
+
+In topological quantum codes (such as surface codes), error correction is fundamentally an exercise in **Algebraic Topology** on a 2D chain complex:
+
+$$C_2 \xrightarrow{\partial_2} C_1 \xrightarrow{\partial_1} C_0$$
+
+* $C_0$: Vector space of syndrome measurements (0-cells / vertices).
+* $C_1$: Vector space of physical qubit errors (1-cells / edges).
+* $C_2$: Vector space of stabilizer plaquettes (2-cells / faces).
+
+The boundary operator $\partial_1: C_1 \to C_0$ maps an error $\mathbf{e} \in C_1$ to its syndrome $\mathbf{s} = \partial_1 \mathbf{e} \in C_0$.
+
+```
+   C₂ (Faces/Plaquettes) ──∂₂──► C₁ (Edges/Qubits) ──∂₁──► C₀ (Vertices/Syndromes)
+
+```
+
+A logical error occurs if and only if the difference between the true error $\mathbf{e}_{\text{true}}$ and the estimated error $\hat{\mathbf{e}}$ forms a non-trivial cycle in the first homology group $H_1$:
+
+$$\mathbf{e}_{\text{true}} + \hat{\mathbf{e}} \in \ker(\partial_1) \setminus \text{im}(\partial_2) = H_1(X, \mathbb{F}_2)$$
+
+* If $\mathbf{e}_{\text{true}} + \hat{\mathbf{e}} \in \text{im}(\partial_2)$, the error is a combination of stabilizer operations and acts as the **identity operator** on logical qubits (successful correction).
+* If $\mathbf{e}_{\text{true}} + \hat{\mathbf{e}} \in H_1$, the correction introduces a non-trivial loop wrapping around the torus/surface, causing an **irrecoverable logical error**.
+
+While MWPM minimizes the geometric length of $\hat{\mathbf{e}}$ to stay within the homology class of $\mathbf{e}_{\text{true}}$, Union-Find ensures $\hat{\mathbf{e}}$ stays within the same homology class by confining path synthesis inside local, topologically bounded cluster trees.

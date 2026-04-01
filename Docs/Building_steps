@@ -1,0 +1,149 @@
+Building the Aether-Decoder requires translating abstract topological geometry and differential equations into discrete, integer-based logic that can be compiled into software (Rust/C++) or hardware (Verilog/FPGA).
+
+Because hardware ALUs (Arithmetic Logic Units) cannot efficiently process floating-point math or continuous differential equations at sub-microsecond speeds, we must transform the continuous Union-Find equations into a **discrete, quantized integer state machine**.
+
+Here is the exact, step-by-step mathematical blueprint to build the decoding engine.
+
+1. **Space-Time Lattice Generation & Weight Quantization:** Mapping physics to integer arithmetic.
+The QPU provides physical error probabilities $p_e$ for each physical operation. We must build a 3D grid graph $G = (V, E)$ where vertices represent syndrome measurements in space and time, and edges represent possible errors.
+
+First, calculate the theoretical Log-Likelihood Ratio (LLR) weight for each edge:
+
+
+$$w_e = \ln \left( \frac{1 - p_e}{p_e} \right)$$
+
+**The Hardware Transformation:**
+FPGAs fail at floating-point division and natural logarithms. We must map $w_e$ to an integer capacity $C_e$. Choose a scaling multiplier $\lambda$ (e.g., $10^4$) to preserve precision:
+
+
+$$C_e = \lfloor \lambda \cdot w_e \rfloor$$
+
+Furthermore, the theoretical growth equation requires adding a fractional $\frac{1}{2}$ to an edge from an active cluster. To avoid fractional math completely in our code, we **double** the edge capacity.
+
+* **Final Integer Capacity:** $W_e = 2 \cdot C_e \in \mathbb{Z}^+$
+
+
+2. **Initialize the DSU State Space:** Allocating memory arrays.
+For a graph with $\vert{}V\vert{}$ vertices and $\vert{}E\vert{}$ edges, allocate contiguous 1D memory arrays to represent the Disjoint-Set Union (DSU) forest and edge states.
+
+**Vertex Arrays (Size $\vert{}V\vert{}$):**
+
+* `parent[v]`: Initializes to $v$. (Points to the root of the cluster).
+* `parity[v]`: Initializes to the measured syndrome $s_v \in \{0, 1\}$.
+* `size[v]`: Initializes to $1$. (Used for union-by-rank optimization).
+
+**Edge Arrays (Size $\vert{}E\vert{}$):**
+
+* `growth[e]`: Initializes to $0$.
+* `capacity[e]`: Initializes to $W_e$.
+* `state[e]`: Initializes to `EMPTY`. (Transitions to `SOLID` when fully grown).
+
+
+3. **The Path-Compression Find Operator:** Resolving cluster ownership.
+Before any cluster can grow, the system must know if the cluster is active (odd parity). Because clusters merge dynamically, a vertex $v$ must traverse up its tree to find its root.
+
+Define the recursive (or iterative) mathematical operator $\text{Find}(v)$:
+
+
+$$r = \text{Find}(v) \implies \text{while } \text{parent}[r] \neq r, \text{ do } r \leftarrow \text{parent}[r]$$
+
+To achieve the near-linear $O(\alpha(V))$ complexity, apply **Path Compression**. As the recursion unwinds, update the pointers so every traversed node points directly to the root:
+
+
+$$\text{parent}[v] \leftarrow r$$
+
+The parity of the cluster containing $v$ is then strictly defined as:
+
+
+$$\pi(v) = \text{parity}[\text{Find}(v)]$$
+
+
+4. **The Discrete Growth Engine:** The time-evolution loop.
+This is the main while-loop of the decoder. We replace the continuous differential equation $\frac{d g(e)}{dt}$ with discrete integer increments.
+
+While the total parity of the system is greater than 0 ($\sum_{v \in \text{roots}} \text{parity}[v] > 0$), iterate over all edges $e = (u, v)$:
+
+1. Identify the root of both endpoints: $r_u = \text{Find}(u)$ and $r_v = \text{Find}(v)$.
+2. If $r_u = r_v$, the edge is fully internal to a cluster. Skip it.
+3. Calculate the growth delta based on root parities:
+
+$$\Delta g_e = \text{parity}[r_u] + \text{parity}[r_v]$$
+
+
+4. Apply the discrete growth equation:
+
+$$\text{growth}[e] \leftarrow \text{growth}[e] + \Delta g_e$$
+
+
+
+*Mathematical reality check:* If neither cluster is active, $\Delta g = 0$. If one is active, $\Delta g = 1$ (which represents the theoretical $\frac{1}{2}$ because we doubled the capacity in Step 1). If both are active, they grow towards each other, yielding $\Delta g = 2$.
+
+
+5. **Collision Detection & DSU Merge (Topological Surgery):** Neutralizing errors.
+Immediately following the growth step, evaluate every edge for collisions. An edge becomes `SOLID` when its growth meets or exceeds its capacity:
+
+$$\text{If } \text{growth}[e] \ge \text{capacity}[e] \text{ and } \text{state}[e] \neq \text{SOLID}:$$
+
+1. Mark $\text{state}[e] = \text{SOLID}$.
+2. Attempt to merge the clusters. Let $r_u = \text{Find}(u)$ and $r_v = \text{Find}(v)$.
+3. **If $r_u \neq r_v$, execute the Union operator:**
+* To maintain balanced trees, attach the smaller tree to the root of the larger tree (Union by Size):
+
+$$\text{If } \text{size}[r_u] < \text{size}[r_v], \text{ swap } r_u \text{ and } r_v$$
+
+
+* Merge the trees:
+
+$$\text{parent}[r_v] \leftarrow r_u$$
+
+
+$$\text{size}[r_u] \leftarrow \text{size}[r_u] + \text{size}[r_v]$$
+
+
+* **The crucial homological update (XOR Parity):**
+
+$$\text{parity}[r_u] \leftarrow \text{parity}[r_u] \oplus \text{parity}[r_v]$$
+
+
+$$\text{parity}[r_v] \leftarrow 0$$
+
+
+
+
+
+Once all clusters reach $\text{parity} = 0$, the growth loop terminates.
+
+
+6. **Spanning Forest Extraction:** Breaking cyclic dependencies.
+The graph formed by all `SOLID` edges often contains cycles. The Peeling solver requires a strict mathematical tree.
+
+Run a Breadth-First Search (BFS) or Depth-First Search (DFS) over the subgraph $G_{\text{solid}} = (V, E_{\text{solid}})$.
+
+* Keep a boolean array `visited[v]`.
+* As you traverse, add edges to a new set $E_{\text{tree}}$.
+* If an edge leads to a vertex where `visited[v] == TRUE`, discard it.
+This mathematically guarantees $E_{\text{tree}}$ is a cyclic-free spanning forest.
+
+
+7. **The Peeling Solver:** Solving the linear system over F_2.
+This final step solves $H \hat{\mathbf{e}} \equiv \mathbf{s} \pmod 2$.
+
+Create a queue of leaf nodes (vertices where degree $D(v) = 1$ in $E_{\text{tree}}$). Let the initial syndrome values $s_v$ be loaded into a working array `current_syndrome[v]`.
+
+While the leaf queue is not empty:
+
+1. Pop a leaf vertex $u$.
+2. Identify its unique incident edge $e = (u, p)$, where $p$ is its parent.
+3. **Assign the correction output:**
+
+$$\hat{e}_e = \text{current\_syndrome}[u]$$
+
+
+4. **Mutate the parent's syndrome:**
+
+$$\text{current\_syndrome}[p] \leftarrow \text{current\_syndrome}[p] \oplus \text{current\_syndrome}[u]$$
+
+
+5. Decrement the degree of $p$. If $D(p) = 1$, push $p$ onto the leaf queue.
+
+The resulting vector $\hat{\mathbf{e}}$ contains the exact physical qubits that must be flipped (via $X$ or $Z$ pulses) by the control hardware to correct the system.

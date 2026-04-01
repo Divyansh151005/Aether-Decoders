@@ -1,0 +1,15 @@
+/target
+.venv
+__pycache__/
+*.pyc
+.cursor/
+scripts/__pycache__/
+python/**/__pycache__/
+rtl/tb_*
+!rtl/tb_*.sv
+rtl/obj_dir/
+rtl/obj_dir_*/
+fpga/**/out/
+fpga/**/out_*/
+rtl/obj_dir/
+rtl/*.vcd

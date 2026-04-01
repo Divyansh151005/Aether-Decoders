@@ -1,0 +1,46 @@
+[workspace]
+members = [".", "dpi"]
+resolver = "2"
+
+[package]
+name = "aether_decoders"
+version = "0.1.0"
+edition = "2021"
+description = "Integer Union-Find quantum error correction decoder (surface-code graphs)"
+license = "MIT"
+
+[lib]
+name = "aether_decoders"
+path = "src/lib.rs"
+
+[[bin]]
+name = "decode_shots"
+path = "src/bin/decode_shots.rs"
+
+[[bin]]
+name = "decode_relay_shots"
+path = "src/bin/decode_relay_shots.rs"
+
+[[bin]]
+name = "gen_rtl_vectors"
+path = "src/bin/gen_rtl_vectors.rs"
+
+[[bin]]
+name = "gen_stim_rtl_vectors"
+path = "src/bin/gen_stim_rtl_vectors.rs"
+
+[[bin]]
+name = "count_uf_decode_errors"
+path = "src/bin/count_uf_decode_errors.rs"
+
+[[bin]]
+name = "helios_n_grow_cosim"
+path = "src/bin/helios_n_grow_cosim.rs"
+
+[[bin]]
+name = "helios_n_decode_cosim"
+path = "src/bin/helios_n_decode_cosim.rs"
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
