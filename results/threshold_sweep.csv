@@ -1,0 +1,17 @@
+noise,decoder,d,p,shots,errors,ler
+circuit,aether_uf,3,0.003,1200,9,0.0075
+circuit,pymatching,3,0.003,1200,7,0.005833333333333334
+circuit,aether_uf,3,0.006,1200,32,0.02666666666666667
+circuit,pymatching,3,0.006,1200,23,0.019166666666666665
+circuit,aether_uf,3,0.01,817,45,0.05507955936352509
+circuit,pymatching,3,0.01,1200,78,0.065
+circuit,aether_uf,3,0.015,369,45,0.12195121951219512
+circuit,pymatching,3,0.015,1200,134,0.11166666666666666
+circuit,aether_uf,5,0.003,1200,9,0.0075
+circuit,pymatching,5,0.003,1200,6,0.005
+circuit,aether_uf,5,0.006,1200,36,0.03
+circuit,pymatching,5,0.006,1200,30,0.025
+circuit,aether_uf,5,0.01,433,42,0.09699769053117784
+circuit,pymatching,5,0.01,1200,102,0.085
+circuit,aether_uf,5,0.015,157,40,0.25477707006369427
+circuit,pymatching,5,0.015,273,57,0.2087912087912088
