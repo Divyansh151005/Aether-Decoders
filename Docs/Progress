@@ -1,0 +1,809 @@
+# Aether-Decoders — Progress log
+
+Living status file. **Update this document at the end of every implementation session** before claiming a milestone. Do not let chat history replace it.
+
+Last updated: 2026-08-27 (M72 Helios-n Stage D decode co-sim)
+
+---
+
+## Vision (unchanged)
+
+Real-time FTQC decoder: FPGA Union-Find for surface codes, Relay-BP for qLDPC, CPU MWPM as rare fallback. Software must be mathematically correct before hardware.
+
+---
+
+## Milestones achieved
+
+| ID | Milestone | Evidence |
+| --- | --- | --- |
+| M1 | Integer UF core (SoA Rust, no `petgraph`) | `cargo test` — 8 tests |
+| M2 | DSU + discrete growth + peeling over \(\mathbb{F}_2\) | Blueprint tests 1–4 + docs peeling example |
+| M3 | Open-boundary neutralization | `boundary_neutralizes_a_single_defect` |
+| M4 | Stim DEM compiler (graphlike, LLR capacities, observables) | `CompiledUfDecoder` + `decode_shots` |
+| M5 | Stim vs PyMatching smoke | `d=3`, 3 rounds, `p=0.001`, 256 shots: UF 0 / MWPM 0 / disagree 0 |
+| M5b | Non-trivial noise comparison | `p=0.03`, 128 shots: UF 35, MWPM 34, disagree 11 (expected UF≠MWPM) |
+| M6 | Sinter-native custom decoder + release-mode collect | `d=3` `p=0.01` 200 shots → 12 logical errors (LER 0.06) |
+| M7 | First circuit-level `d`/`p` sweep vs PyMatching | `scripts/threshold_sweep.py` → `results/threshold_sweep.csv` (~7 min, release binary) |
+| M8 | Persistent `decode_shots` process (compile DEM once) | Sinter collect 200 shots ~3 s (was spawn-per-batch); line-flushed stdin protocol |
+| M9 | Dense matched-shot sweep `d=3,5,7` + phenom near-threshold | `results/threshold_dense.csv`, `results/threshold_phenom_near_thr.csv` (**phenom UF numbers in M9 are pre-fix, superseded by M10**) |
+| M10 | Peel toward a boundary root (multi-boundary clusters) | `two_boundary_star_peels_the_defect`; phenom d=7 p=0.006: UF 0/200 (was 5/200); d=5 p=0.015: UF 6 / MWPM 4 / 400 shots (was 22 vs 2) |
+| M11 | Post-M10 phenom Sinter grid `d=3,5,7` vs MWPM | `results/threshold_phenom_m10.csv` — UF LER falls with d at p=0.015 (0.010 → 0.005 → 0) |
+| M12 | Circuit-level matched 1200-shot grid + Wilson 95% CI | `results/threshold_circuit_m12.csv` — at p=0.003, UF d=7 vs d=3 Wilson intervals disjoint |
+| M13 | Relay-BP (DMem-BP + relay legs) + Stim hypergraph smoke | `src/relay_bp.rs`; repetition unit tests; `scripts/relay_bp_smoke.py` color_code d=3 (max col weight 6) |
+| M14 | Published BB Stim circuit + Relay vs BP+OSD matched shots | IBM `[[18,4,3]]` / `[[72,12,6]]` testdata; `results/relay_bb_bakeoff_m14.csv` |
+| M15 | UF PE / memory mapping notes (no RTL) | `Docs/Hardware_Mapping`; sizes in `results/uf_graph_sizes.csv`; Helios + Das cited |
+| M16 | Bit-identical cycle-accurate UF co-sim model | `src/cycle_model.rs`; Blueprint + compiled tests; `scripts/uf_cosim_smoke.py` |
+| M17 | Helios-style PE grow/merge + first SV RTL | `src/helios_pe.rs`; `rtl/aether_uf_two_node_grow_merge.sv` (Icarus PASS cycles=5) |
+| M18 | Parameterized N/E grow+merge RTL vs Blueprint | `rtl/aether_uf_grow_merge.sv`; Icarus vs `helios_pe` solids/cycles |
+| M19 | Peel FSM RTL + grow→peel end-to-end co-sim | `rtl/aether_uf_peel.sv`; `scripts/rtl_decode_sim.sh` — **8/8 PASS** vs `decode_cosim` |
+| M20 | Stim-compiled UF → Icarus grow/peel harness | `scripts/stim_rtl_harness.py`; phenom d=3 r=1 V=16 E=18 **8/8**; circuit d=3 r=1 V=28 E=35 **4/4** |
+| M21 | IBM gross `[[144,12,12]]` Relay vs BP+OSD | `results/relay_bb_bakeoff_m21.csv`; DEM 1728×67752; p=0.003 & 0.006 matched 50 shots |
+| M22 | Stim UF RTL beyond E=64 (per-edge solid/corr) | `Docs/Rtl_Scale_Research`; phenom d=3 r=3 **V=72 E=94** Icarus **4/4** + Blueprint 8/8 |
+| M23 | Phenom d=5 r=5 Stim RTL + Verilator | IDX_W=16, MAX=600; **V=272 E=518** Icarus **2/2** + Verilator **2/2**; Blueprint 8/8 |
+| M24 | Circuit d=3 r=3 Stim RTL | peel `MAX_DEG=64`; **V=392 E=556** max_deg=63; Verilator **2/2**; Blueprint 8/8 |
+| M25 | Denser gross `[[144,12,12]]` Relay curve | `results/relay_bb_bakeoff_m25.csv`; p=0.002…0.01, 100 shots; matched OSD≤0.006 |
+| M26 | DPI Rust↔RTL Blueprint co-sim | `aether_uf_dpi` + Verilator; **8/8 PASS** vs live `decode_cosim`/`helios_pe` |
+| M27 | Gross Relay vs OSD @ p=0.005 ×400 | `results/relay_bb_bakeoff_m27.csv`; Relay 72/400 vs OSD 115/400; Wilson **disjoint** |
+| M28 | Stim-scale DPI co-sim | circuit d=3 r=3 **V=392 E=556** Verilator DPI **2/2**; Blueprint DPI 8/8 |
+| M29 | M27 replication @ seed=2 | `results/relay_bb_bakeoff_m29.csv`; Relay 92/400 vs OSD 115/400; Wilson **overlap** |
+| M30 | PE-grid H8 OR-tree + long-job heartbeats | `rtl/aether_uf_or_tree.sv` Icarus+Verilator PASS; bake-off ETA/15s heartbeat |
+| M31 | OR-tree grow+merge (Blueprint N≤8) | `aether_uf_grow_merge_ctrl` ≡ helios_pe solids/cycles; Icarus+Verilator **8/8** |
+| M32 | Peel after OR-tree grow (Blueprint) | `tb_aether_uf_decode_ctrl` grow+peel ≡ decode_cosim; Icarus+Verilator **8/8** |
+| M33 | Registered OR-tree levels (timing) | `aether_uf_or_tree_pipe`; depth≡clog2(N); latency≡depth (pow2) |
+| M34 | Per-PE neighbor-port grow (pair) | `aether_uf_pe_vertex`+`pe_pair_grow` ≡ two_node cycles=5; Icarus+Verilator |
+| M35 | PE line3 mesh (N=3, 2 edges) | `aether_uf_pe_line3_grow` ≡ helios_pe cycles=10 solid=3; Icarus+Verilator |
+| M36 | Parameterized line PE mesh + line4 | `aether_uf_pe_line_grow` N=4 cycles=15 solid=7; line3/pair regression |
+| M37 | Edge-list PE mesh (square + branch) | `aether_uf_pe_graph_grow`; square cycles=5 solid=8; docs_peel cycles=10 solid=3 |
+| M38 | PE-mesh grow→peel (8 Blueprint) | graph_grow→peel ≡ decode_cosim; square_opp/boundary/star incl. |
+| M39 | Helios-n LUTRAM dual-context (H9) | `aether_uf_pe_lutram_ctx` Helios-2 1-cycle bit-identical restore |
+| M40 | Helios-2 micro grow (H9 wired) | two_node∥boundary multiplex; ctx0 solid restored after ctx1 |
+| M41 | Helios-2 micro grow→peel | ctx0/ctx1 corr=1 ≡ Blueprint; peel after restore |
+| M42 | Stim PE-mesh grow (phenom d=3 r=1) | `pe_graph_grow`+`cap_bus`; V=16 E=18 **4/4** ≡ helios_pe |
+| M43 | Stim PE-mesh grow→peel (phenom d=3 r=1) | PE-mesh solids → peel; **4/4** corr/peel_ops ≡ decode_cosim |
+| M44 | Stim PE-mesh grow (phenom d=3 r=3) | V=72 E=94 **4/4**; cycles 32-bit; TB MAX=128 |
+| M45 | Stim PE-mesh grow→peel (phenom d=3 r=3) | PE-mesh solids → peel; **4/4** corr/peel_ops ≡ decode_cosim |
+| M46 | Stim PE-mesh grow (circuit d=3 r=3) | V=392 E=556 **2/2**; MAX=600 IDX_W=16 Verilator |
+| M47 | Stim PE-mesh grow→peel (circuit d=3 r=3) | PE-mesh solids → peel MAX_DEG=64; **2/2** ≡ decode_cosim |
+| M48 | H10 host I/O notes | `Docs/Host_IO_H10` — BRAM/URAM syndrome ring; no RTL |
+| M49 | H11 MWPM-fallback notes | `Docs/Mwpm_Fallback_H11` — unsolved/timeout → CPU; no RTL |
+| M50 | H10 syndrome ring RTL | depth-2 ring → PE-mesh Stim decode; Icarus+Verilator PASS |
+| M51 | UF DecodeError rates (H11 gate) | `results/uf_decode_error_m51.csv` — 0 aborts / 12×400 shots |
+| M52 | H10 ring @ circuit d=3 r=3 | depth-2 ring → PE-mesh decode V=392; Verilator PASS |
+| M53 | H10 obs egress stub | ring→peel→obs XOR; Stim phenom **4/4** ≡ decode_observables |
+| M54 | Denser UF DecodeError rates | `results/uf_decode_error_m54.csv` — 0 aborts / 12×400 (d≤7) |
+| M55 | FPGA bring-up prep checklist | `Docs/Fpga_Bringup_Prep` — S0–S5 stages; G1–G6 gates; no synth |
+| M56 | Name VCU129 + S0 Yosys synth | `results/fpga_s0_synth_m56.csv` — OR-tree 14 LUT; ring 30 LUT / 42 FF |
+| M57 | S1 Blueprint PE-mesh Yosys | `results/fpga_s1_synth_m57.csv` — N4 4020 LUT; N8 17233 LUT; Verilator 8/8 |
+| M58 | S2 Helios-2 / H9 Yosys | `results/fpga_s2_synth_m58.csv` — BRAM=0; Helios2 410 LUT; Verilator decode |
+| M59 | Peel packed ports (Yosys-ready) | buses + packer; bounded BFS; sim 8/8; Yosys synth deferred (single-cycle peel) |
+| M60 | Multi-cycle peel FSM + Yosys | `results/fpga_peel_mc_m60.csv` — 9453 LUT / 1405 FF; Blueprint 8/8 |
+| M61 | S3 phenom V=16 + H10 Yosys | `results/fpga_s3_synth_m61.csv` — grow 138k LUT; peel N16 timeout; H10 Verilator PASS |
+| M62 | S1 combined grow→peel Yosys | `results/fpga_s1_combined_m62.csv` — 13364 LUT / 1618 FF; Verilator 8/8 |
+| M63 | Peel N=16 FSM soften + Yosys | `results/fpga_peel_n16_m63.csv` — 18023 LUT / 9509 FF; Blueprint+PE-mesh 8/8 |
+| M64 | S3 combined grow→peel Yosys | `results/fpga_s3_combined_m64.csv` — 153509 LUT / 10284 FF; Stim decode 4/4 |
+| M65 | S4 circuit grow Yosys cliff | `results/fpga_s4_grow_m65.csv` — timeout 1800s (hierarchy derive N392) |
+| M66 | Grow Yosys scale curve | `results/fpga_grow_scale_m66.csv` — ok ≤N16; N24/N32 ABC timeout |
+| M67 | Helios-n multiplex research notes | `Docs/Helios_n_Multiplex_M67` — cite Helios; no new Stim-scale RTL |
+| M68 | Helios-n phenom partition mapper | `results/helios_n_partition_m68.csv` — n=6 max_part=14; N_phys≤16 |
+| M69 | Helios-n schedule / co-sim plan | `Docs/Helios_n_Schedule_M69` — N_CTX=6 H9 PASS; M_phys≥12 |
+| M70 | Helios-n PE coloring (phenom r=3) | `results/helios_n_coloring_m70.csv` — 7 phys; n_parts=16; M68 infeasible |
+| M71 | Helios-n grow co-sim vs flat M44 | `results/helios_n_grow_cosim_m71.csv` — 16/16 solids+cycles ≡ flat |
+| M72 | Helios-n Stage D peel co-sim vs M45 | `results/helios_n_decode_cosim_m72.csv` — 16/16 corr+peel_ops ≡ cosim |
+
+---
+
+## Done
+
+- Rust library `aether_decoders`: types, graph, DSU, engine, peeling, weights, compiled DEM decoder.
+- Locked decisions: skip same-root growth; peel from frozen `syndrome[]`; union-by-size; unique virtual boundary vertex per degree-1 DEM error; active cluster = odd **and** not on boundary.
+- CLI `decode_shots` (JSON DEM + 0/1 shot lines → observable bits).
+- Python Stim smoke: `scripts/stim_surface_code_smoke.py`.
+- Sinter adapter: `python/aether_decoders/sinter_decoder.py`.
+- Threshold sweep: `scripts/threshold_sweep.py` (`--workers`, huge default `max_errors` for matched shots).
+- Boundary-root peeling: if a solid cluster contains any virtual boundary, that vertex is the peel root; other boundary leaves are processed (fixes detector–boundary stars).
+- Relay-BP module (Müller et al.): min-sum DMem-BP eqs. 1–4, per-node γ (incl. negative), Relay-BP-S legs, min-weight among S solutions. CLI `decode_relay_shots`. Hypergraph DEM via `dem_to_relay_payload` (no `^` split).
+- IBM BB Stim fixtures under `testdata/bicycle_bivariate/` + bake-off script `scripts/relay_bb_bakeoff.py` (Relay vs ldpc BP+OSD-CS10); M21/M25 gross `[[144,12,12]]` curve.
+- Hardware mapping notes: `Docs/Hardware_Mapping` (Helios PE grid + Das pipeline ↔ Aether SoA; measured Stim V/E).
+- Cycle-accurate UF co-sim: `src/cycle_model.rs` (`assert_bit_identical`); agent rule `.cursor/rules/aether-deterministic.mdc`.
+- Helios PE grow/merge + RTL peel + Stim harness through phenom d=5 r=5 (M23) and circuit d=3 r=3 (M24); Verilator 5.050 for large co-sim.
+- Research notes: `Docs/Rtl_Scale_Research`, `Docs/Rtl_Dpi_Research`.
+- DPI crate `dpi/` (`aether_uf_dpi` cdylib) + `scripts/dpi_rtl_cosim.sh` (M26) + `scripts/stim_dpi_cosim.sh` (M28).
+- PE-grid prep: S0–S3 Yosys; M65–M71 cliff/schedule/coloring/grow; **M72** Helios-n Stage D ≡ `decode_cosim` (`helios_n_decode_cosim_m72.csv`); bake-off heartbeats.
+- Agent workflow rule (always apply): `.cursor/rules/aether-deterministic.mdc` — research repos/papers/docs each step, trade-offs, tooling scan, test after each step, Progress as source of truth; long-job heartbeats.
+- This progress log.
+
+---
+
+## M7 circuit-level results (rotated_memory_z, rounds = d)
+
+Noise: Stim `after_clifford_depolarization` + data + measure + reset, all at the same `p`. Decoders: `aether_uf` vs built-in `pymatching`. Caps: `max_shots=1200`, `max_errors=40`.
+
+| d | p | UF shots / errors / LER | MWPM shots / errors / LER |
+| --- | --- | --- | --- |
+| 3 | 0.003 | 1200 / 9 / 0.0075 | 1200 / 7 / 0.0058 |
+| 3 | 0.006 | 1200 / 32 / 0.027 | 1200 / 23 / 0.019 |
+| 3 | 0.01 | 817 / 45 / 0.055 | 1200 / 78 / 0.065 |
+| 3 | 0.015 | 369 / 45 / 0.122 | 1200 / 134 / 0.112 |
+| 5 | 0.003 | 1200 / 9 / 0.0075 | 1200 / 6 / 0.0050 |
+| 5 | 0.006 | 1200 / 36 / 0.030 | 1200 / 30 / 0.025 |
+| 5 | 0.01 | 433 / 42 / 0.097 | 1200 / 102 / 0.085 |
+| 5 | 0.015 | 157 / 40 / 0.255 | 273 / 57 / 0.209 |
+
+**How to read this (do not over-claim a threshold):**
+
+- UF tracks MWPM and is usually slightly worse, which is the expected heuristic gap.
+- At `p ≥ 0.01`, **larger d is worse** for both decoders → this grid is mostly **above** the circuit-level threshold for this noise model (literature weighted UF ≈ 0.62%, MWPM ≈ 0.72% under a related but not identical circuit model).
+- At `p = 0.003`, d=3 and d=5 UF LER are identical (9/1200). That is **not** distance suppression; shot noise. Need many more shots and `p` closer to 0.1%–0.5%.
+- `max_errors=40` stopped UF early at high `p`, so those LERs are **not** fair head-to-heads (different shot counts). Next sweeps should raise `max_errors` or disable it for comparison rows.
+
+## M9 dense sweep (matched 800 shots unless noted)
+
+Circuit-level, `p ∈ {0.002, 0.004, 0.006}`, rounds = d, 800 shots both decoders. Source: `results/threshold_dense.csv`. Runtime ~12.5 min, 2 workers.
+
+| d | p | UF LER | MWPM LER |
+| --- | --- | --- | --- |
+| 3 | 0.002 | 0.00375 (3/800) | 0.005 (4/800) |
+| 5 | 0.002 | 0 (0/800) | 0 (0/800) |
+| 7 | 0.002 | 0.00125 (1/800) | 0 (0/800) |
+| 3 | 0.004 | 0.00875 | 0.015 |
+| 5 | 0.004 | 0.010 | 0.00625 |
+| 7 | 0.004 | 0.0075 | 0.00625 |
+| 3 | 0.006 | 0.0225 | 0.030 |
+| 5 | 0.006 | 0.015 | 0.021 |
+| 7 | 0.006 | 0.0225 | 0.0125 |
+
+At `p=0.002`, d=5 and d=7 beat d=3 — first hint of circuit-level suppression. Not enough errors to quote a threshold. At `p=0.006`, d=7 UF is worse than MWPM (0.0225 vs 0.0125).
+
+Phenomenological **same p grid** (too far below the ~2.6% literature threshold): MWPM is ~0 at d=7; UF is not (e.g. d=7 p=0.006: UF 19/800 vs MWPM 0/800). Confirmed off-Sinter: d=7 p=0.006, 200 shots, UF 5 vs MWPM 0.
+
+Phenom nearer threshold (`results/threshold_phenom_near_thr.csv`, 400 shots):
+
+| d | p | UF LER | MWPM LER |
+| --- | --- | --- | --- |
+| 3 | 0.015 | 0.0425 | 0.0125 |
+| 5 | 0.015 | 0.055 | 0.005 |
+| 3 | 0.02 | 0.0525 | 0.0425 |
+| 5 | 0.02 | 0.0725 | 0.025 |
+| 3 | 0.025 | 0.0725 | 0.040 |
+| 5 | 0.025 | 0.13 | 0.0275 |
+
+MWPM **suppresses** with d at these p; UF **anti-suppresses** in this **pre-M10** table. Root cause: peeling skipped every boundary leaf, so a cluster that touched two virtual boundaries (common for equal-weight measurement edges) never peeled the detector. **Do not use these phenom LERs.** Post-fix numbers are under M10.
+
+Reproduce:
+
+```bash
+python3 scripts/threshold_sweep.py --noise both --distances 3,5,7 --ps 0.002,0.004,0.006 \
+  --max-shots 800 --max-errors 1000000000 --workers 2 --out results/threshold_dense.csv
+python3 scripts/threshold_sweep.py --noise phenom --distances 3,5 --ps 0.015,0.02,0.025 \
+  --max-shots 400 --max-errors 1000000000 --workers 2 --out results/threshold_phenom_near_thr.csv
+```
+
+## M11 phenom after peel fix (400 shots, cite this not M9)
+
+`results/threshold_phenom_m10.csv`. Data + measurement noise, rounds = d.
+
+| d | p | UF LER | MWPM LER |
+| --- | --- | --- | --- |
+| 3 | 0.01 | 0.005 | 0.010 |
+| 5 | 0.01 | 0.005 | 0.0025 |
+| 7 | 0.01 | 0.0025 | 0 |
+| 3 | 0.015 | 0.010 | 0.015 |
+| 5 | 0.015 | 0.005 | 0.0125 |
+| 7 | 0.015 | 0 | 0.0075 |
+| 3 | 0.02 | 0.0325 | 0.0325 |
+| 5 | 0.02 | 0.0125 | 0.015 |
+| 7 | 0.02 | 0.020 | 0.0075 |
+| 3 | 0.025 | 0.0525 | 0.045 |
+| 5 | 0.025 | 0.0225 | 0.0325 |
+| 7 | 0.025 | 0.025 | 0.030 |
+
+UF now **falls with d** at p=0.015. 400 shots is a sanity check, not a threshold fit.
+
+## M12 circuit-level, matched 1200 shots, Wilson 95% CI
+
+Noise: Stim `rotated_memory_z`, rounds = d, `after_clifford_depolarization` + data + measure + reset, all at the same `p`. Decoders: `aether_uf` vs `pymatching`. Caps: `max_shots=1200`, `max_errors=10^9` (every row has 1200 shots). CI: Wilson score, z = Φ⁻¹(0.975). Source: `results/threshold_circuit_m12.csv`. Runtime ~31.7 min, 2 workers. Do not overwrite M11 phenom CSV.
+
+| d | p | UF err / LER [lo, hi] | MWPM err / LER [lo, hi] |
+| --- | --- | --- | --- |
+| 3 | 0.001 | 0 / 0 [0, 0.003191] | 2 / 0.001667 [0.0004572, 0.006057] |
+| 5 | 0.001 | 0 / 0 [0, 0.003191] | 0 / 0 [0, 0.003191] |
+| 7 | 0.001 | 0 / 0 [0, 0.003191] | 0 / 0 [0, 0.003191] |
+| 3 | 0.002 | 5 / 0.004167 [0.001781, 0.009717] | 3 / 0.0025 [0.0008506, 0.007324] |
+| 5 | 0.002 | 1 / 0.0008333 [0.0001471, 0.004705] | 0 / 0 [0, 0.003191] |
+| 7 | 0.002 | 1 / 0.0008333 [0.0001471, 0.004705] | 0 / 0 [0, 0.003191] |
+| 3 | 0.003 | 13 / 0.01083 [0.006342, 0.01845] | 10 / 0.008333 [0.004533, 0.01527] |
+| 5 | 0.003 | 5 / 0.004167 [0.001781, 0.009717] | 6 / 0.005 [0.002293, 0.01087] |
+| 7 | 0.003 | 1 / 0.0008333 [0.0001471, 0.004705] | 1 / 0.0008333 [0.0001471, 0.004705] |
+| 3 | 0.004 | 14 / 0.01167 [0.006962, 0.01949] | 15 / 0.0125 [0.00759, 0.02052] |
+| 5 | 0.004 | 8 / 0.006667 [0.003382, 0.0131] | 9 / 0.0075 [0.003951, 0.01419] |
+| 7 | 0.004 | 5 / 0.004167 [0.001781, 0.009717] | 5 / 0.004167 [0.001781, 0.009717] |
+| 3 | 0.005 | 28 / 0.02333 [0.01619, 0.03352] | 15 / 0.0125 [0.00759, 0.02052] |
+| 5 | 0.005 | 14 / 0.01167 [0.006962, 0.01949] | 20 / 0.01667 [0.01081, 0.0256] |
+| 7 | 0.005 | 23 / 0.01917 [0.01281, 0.0286] | 15 / 0.0125 [0.00759, 0.02052] |
+| 3 | 0.006 | 33 / 0.0275 [0.01965, 0.03837] | 17 / 0.01417 [0.008864, 0.02257] |
+| 5 | 0.006 | 24 / 0.02 [0.01348, 0.02959] | 29 / 0.02417 [0.01688, 0.03449] |
+| 7 | 0.006 | 20 / 0.01667 [0.01081, 0.0256] | 26 / 0.02167 [0.01483, 0.03156] |
+
+**What the intervals support (and nothing else):**
+
+- At **p=0.003**, UF Wilson intervals for **d=7** and **d=3** are disjoint (hi 0.004705 < lo 0.006342). Same-shot binomial CIs therefore separate those two LERs. d=5 vs d=3 at this p still overlap.
+- At **p=0.001**, UF is 0/1200 for all three distances; the Wilson upper bound is 0.003191. No ranking is possible.
+- At **p=0.005**, UF **point** LER is higher at d=7 than at d=5 (23/1200 vs 14/1200); the Wilson intervals **overlap**. Do not call this anti-threshold.
+- No p_th is fitted. Huang’s ~0.62% / ~0.72% figures are a **different** circuit-noise family; they only motivate why this grid sits at 0.1%–0.6%.
+
+Reproduce:
+
+```bash
+cargo build --release --bin decode_shots
+PYTHONPATH=python python3 scripts/threshold_sweep.py --noise circuit --distances 3,5,7 \
+  --ps 0.001,0.002,0.003,0.004,0.005,0.006 --max-shots 1200 --max-errors 1000000000 \
+  --workers 2 --out results/threshold_circuit_m12.csv
+```
+
+---
+
+## Remaining (Phase 1 software)
+
+- Fitted circuit-level p_th (crossing or finite-size collapse) if needed; M12 is a grid with CIs, not a fit. More shots at p≤0.002 still yield mostly 0–1 errors.
+- More phenom shots if we need a fitted threshold (~2.6% literature); 400 shots is a sanity grid, not a fit.
+- Full gross `[[144,12,12]]` d=12 matched bake-off at scale (M14 used `[[18,4,3]]` + sanity `[[72,12,6]]`; IBM stim files are in testdata).
+- Weighted growth *policy* (Huang) only if a residual UF–MWPM gap remains at scale.
+- PyO3 if persistent stdin is still too slow.
+- Sliding-window / streaming space-time decode.
+- Parameterized multi-node SV PE grid + Verilator/Icarus co-sim vs `helios_pe` (M17 is two-node kernel + Rust PE model).
+- CPU MWPM fallback for unresolved shots.
+
+## Remaining (later phases)
+
+- Full PE-grid FPGA bring-up / Helios-n context switch on a target part.
+- Control bindings (C/gRPC/PCIe, Qblox / ZI) (Overview Phase 3).
+
+---
+
+## Planned next (priority order)
+
+1. **Next:** SV Helios-n schedule + `pe_graph_grow` #(N≤16, N_CTX≥16) **or** Vivado S0 on Linux **or** G4 S3 netlist sim. Third seed @ p=0.005 only if ranking required (M29 overlap).
+2. PyO3 only if required.
+3. Full PE-grid FPGA bring-up after Vivado S0 (or Progress override) + G4 — multiplex per M67–M72; **not** flat PE above N16.
+
+---
+
+## Mistakes and corrections (do not re-introduce)
+
+| Mistake | Correction |
+| --- | --- |
+| `Docs/Analysis` labeled ~10.3% / ~9.9% as phenomenological | Those are **code-capacity** (perfect syndromes). Phenomenological UF ≈ 2.6%. Circuit-level weighted UF ≈ 0.62% vs MWPM ≈ 0.72% (Huang et al.). |
+| Overview Relay-BP as one \(\gamma\) on tanh-BP, “10× vs BP+OSD” | Use Müller et al. arXiv:2506.01779: min-sum DMem-BP, per-node \(\gamma\) (including **negative**), relay legs, pick min-weight among \(S\) solutions. Gains are problem-dependent. |
+| Blueprint `step_growth` grows intra-cluster edges | Skip when `find(u)==find(v)` (Delfosse boundary growth). |
+| Peeling from DSU-mutated `parity[]` | Frozen `syndrome[]` only. |
+| Treating Stim hyperedges as “decompose failed” | Circuit Y-faults stay as `D0 D1 ^ D2` **separator** pieces; split on `^`, then each piece is degree ≤ 2. |
+| One shared virtual boundary node for all degree-1 errors | Unique boundary vertex per boundary edge (avoids stitching opposite boundaries). |
+| Peeling every boundary vertex as a forbidden leaf | Root the forest at **one** boundary; peel all other leaves (including extra virtual boundaries). A 2-node detector–boundary tree still peels the detector, not the root. |
+| Reading M9 phenom LER as a published-style threshold | Those rows were a peel bug; see M10. |
+| `Building_steps` says union-by-rank | Implementation is **union-by-size**. |
+| Debug `decode_shots` for noisy shots | Use **release** for Sinter/smoke timing. |
+| Comparing LER after `max_errors` early-stop | Only compare rows with the same shot count; raise `max_errors` for decoder bake-offs. |
+| Same `p` grid for circuit and phenom | Circuit threshold ~0.6%; phenom ~2.6%. Sweep them separately. |
+| Reading UF phenom LER as a published-style threshold | Use M11 (`threshold_phenom_m10.csv`), not M9. 400 shots is not a threshold fit. |
+| Reading M12 as a circuit-level p_th | Cite counts + Wilson intervals in `threshold_circuit_m12.csv`. Disjoint CIs at one p do not define a crossing. |
+| Implementing Relay-BP from `Docs/Equations_Theory` §5 | Use arXiv:2506.01779 eqs. (1)–(4): min-sum, Λ_j=(1−γ_j)λ_j(0)+γ_j M_j(t−1), γ may be **negative**. |
+| Claiming Relay ≪ BP+OSD from M14 [[18,4,3]] | Wilson intervals overlap (9/200 vs 14/200). Cite counts only; full gross curve still open. |
+| Claiming Relay ≪ BP+OSD from M21 [[144,12,12]] at p=0.006 | Relay 26/50 vs OSD 30/50; Wilson [0.385,0.652] vs [0.462,0.724] **overlap**. Cite counts only. |
+| Claiming Relay ≪ BP+OSD from M25 denser gross curve | At every matched p≤0.006 with **100** shots, Wilson intervals **overlap** (e.g. p=0.005: 21/100 vs 31/100). Cite counts + CIs only. |
+| Over-generalizing M27 | M27 shows **disjoint** Wilson at **one** point (p=0.005, 400 shots, seed=1). M29 seed=2 **overlaps**. Do not claim seed-independent superiority from M27 alone. |
+| Treating M27 as replicated ranking | M29 (seed=2, same p/shots/hyperparams): Relay 92/400 [0.191, 0.274] vs OSD 115/400 [0.245, 0.334] — **overlap**. Cite both CSVs. |
+| Waiting on BP+OSD at gross p=0.01 with max_iter=10000 | OSD-CS10 on 67k columns is impractically slow at high p for interactive bake-offs; use lower p or fewer shots / lighter OSD for smoke. |
+| Overview “dual-port BRAM for PE clustering” / “4-neighbor only” | Helios: PE state in **LUTRAM/regs**; BRAM for static tables. Circuit DEM degree ≠ 4 (see `Docs/Hardware_Mapping`). |
+| Helios-2 peel start same cycle as `load_peel_inputs` after M59 packer | Icarus continuous assigns from unpacked array ports settle **after** the blocking-update region; `@(posedge clk)` once after load before `start_peel`, else peel samples `syn_mem=0`. |
+| Expecting Yosys `synth_xilinx` on M19 single-cycle peel | Peel runs full BFS/forest in one cycle (blocking); Yosys hangs / explodes. Need **multi-cycle** peel FSM for FPGA resource reports. Packed ports alone are not enough. |
+| Claiming S4 / V=392 flat PE-mesh Yosys LUT or VU13P fit | M65: `aether_uf_pe_mesh_s4_grow` N392 **timeout 1800 s** in hierarchy derive (`fpga_s4_grow_m65.csv`). Cite cliff; need Helios-n multiplex — not a LUT number. |
+| Inventing N24/N32/N64 flat grow LUT from M66 | M66: N24 **ABC timeout 1800 s**; N32 **ABC timeout 3600 s**; no LUT (`fpga_grow_scale_m66.csv`). Ok curve stops at N16 (138502 LUT). |
+| Claiming Aether Helios µs/round or VU13P fit of flat PE >N16 | Cite Helios numbers only with their noise/part; Aether needs multiplex (M67) + bitstream evidence. |
+| Using time-only Helios partition for Aether phenom r=3 at N_phys=16 | M68: mid times \|S\|=28>16 once boundaries attach; use **intra_time_det_pack** (n=6, max=14) — `helios_n_partition_m68.csv`. |
+| Treating part index as physical PE id for Helios-n | M69: cross-cut pairs must **colocate** on one physical PE (Helios); need coloring map before Stim grow RTL. |
+| Using M68 n=6 parts as Helios-n schedule under colocation | M70: M68 pack is **colocation-infeasible** (transitive). Use `det_comp_paired` n=16 / 7 phys (`helios_n_coloring_m70.csv`). |
+
+---
+
+## Session notes
+
+### 2026-08-19 — core + Stim
+
+- Implemented UF engine and Stim harness.
+- Smoke at low `p` was all-zero logical frames (weak by itself); confirmed at `p=0.03` that UF tracks MWPM LER.
+
+### 2026-08-19 — Sinter + progress log
+
+- Added this file as the required project scoreboard.
+- Added Sinter custom decoder wrapping the release `decode_shots` binary.
+- `sinter.collect` smoke: rotated_memory_z `d=3`, 3 rounds, `p=0.01`, 200 shots, 12 logical errors.
+
+### 2026-08-19 — threshold sweep (M7)
+
+- Script: `scripts/threshold_sweep.py`. Raw table: `results/threshold_sweep.csv`.
+- Runtime ~410 s for 8 `(d,p)` pairs × 2 decoders, `num_workers=1`.
+
+### 2026-08-19 — persistent decoder (M8)
+
+- `decode_shots` flushes each observable line. Sinter keeps one process per DEM so the graph is not recompiled every batch.
+- Sinter collect smoke: 200 shots in ~3 s (13 logical errors at `d=3`, `p=0.01`).
+
+### 2026-08-19 — dense sweep (M9)
+
+- Matched 800 shots, `d=3,5,7`, circuit+phenom at p=0.002–0.006: `results/threshold_dense.csv`.
+- Circuit at p=0.002 shows suppression vs d=3. Phenom UF does not match MWPM (d=7 p=0.006: UF 19/800 vs MWPM 0).
+- Extra phenom grid p=0.015–0.025, d=3,5: `results/threshold_phenom_near_thr.csv` (pre-M10; do not cite).
+
+### 2026-08-19 — phenom peel bug (M10)
+
+- Cause: unique virtual boundary per degree-1 error; equal-weight measurement edges solidify two boundaries in one merge; BFS tree is a detector–boundary star with **no non-boundary leaf**.
+- Fix: component peel root = a boundary vertex if any exists; enqueue every other degree-1 node.
+- Check: phenom d=7 p=0.006, 200 shots, UF 0 (was 5); d=5 p=0.015, 400 shots, UF 6 vs MWPM 4 (was 22 vs 2).
+
+### 2026-08-19 — post-fix phenom grid (M11)
+
+- `results/threshold_phenom_m10.csv`, 400 shots, rounds=d, data+measure noise only.
+- At p=0.015: UF LER d=3/5/7 = 0.010 / 0.005 / 0 (MWPM 0.015 / 0.0125 / 0.0075). Distance suppression restored.
+- At p=0.025: UF 0.0525 / 0.0225 / 0.025 vs MWPM 0.045 / 0.0325 / 0.030. Competitive; not a fitted p_th.
+- Runtime ~55 s with 2 workers (persistent decoder).
+
+### 2026-08-19 — circuit Wilson grid (M12)
+
+- `scripts/threshold_sweep.py` writes Wilson 95% columns `ler_lo` / `ler_hi`.
+- `results/threshold_circuit_m12.csv`: p = 0.001…0.006 step 0.001, d=3,5,7, 1200 shots every row.
+- Only disjoint UF distance comparison: p=0.003, d=7 vs d=3.
+
+### 2026-08-21 — Relay-BP (M13)
+
+- Source of truth: Müller et al. arXiv:2506.01779 §§II–III (not Overview / Equations_Theory §5).
+- `src/relay_bp.rs`: min-sum DMem-BP + Relay-BP-S; unit tests match 3-bit repetition H=[[1,1,0],[0,1,1]] (same cases as IBM `relay` crate).
+- `src/relay_compiled.rs` + `decode_relay_shots`: hypergraph DEM → observables.
+- `python/.../dem_relay.py`: one column per Stim `error` (F₂ union across `^`); UF path still splits for matching.
+- Smoke: Stim `color_code:memory_xyz` d=3,r=3,p=0.001, 64 shots → 1 logical error; max column weight 6 (UF-incompatible).
+- Stim has no built-in bicycle/gross generator; BB bake-off is next, not claimed here.
+
+### 2026-08-21 — BB bake-off (M14)
+
+- Background terminals `808509` / `925542`: duplicate `git clone trmue/relay` hung on network timeout (`curl 56` / early EOF) while contending on `/tmp/relay-ref/.git/shallow.lock`. Killed; not needed (fetched stim files via raw.githubusercontent).
+- Circuits: IBM Apache-2.0 testdata under `testdata/bicycle_bivariate/` (provenance in `testdata/README.md`).
+- `scripts/relay_bb_bakeoff.py`: same shots → Aether Relay (`decode_relay_shots`) vs `ldpc.BpOsdDecoder` OSD-CS order 10, max_iter=10000.
+- `[[18,4,3]]` Z-memory, p=0.003, 200 shots, seed=1: Relay 9/200 LER=0.045 [0.02385, 0.0833]; BP+OSD 14/200 LER=0.07 [0.04215, 0.1141]. Intervals overlap.
+- `[[72,12,6]]` Z-memory, p=0.003, 50 shots: both 0/50 (Wilson hi 0.07135) — no ranking.
+- Hyperparams: γ₀=0.125, γ∼U[-0.24,0.66], T₀=80, T_r=60, stop_nconv=1, num_sets=60 (Müller gross defaults).
+
+### 2026-08-21 — UF hardware mapping (M15)
+
+- Sources: Helios arXiv:2406.08491 (PE/S1–S3/LUTRAM/VCU129 latencies); Das arXiv:2001.06598 (Gr-Gen/DFS/Corr); Aether `DecoderGraph` SoA.
+- Artifact: `Docs/Hardware_Mapping` + `scripts/uf_graph_sizes.py` → `results/uf_graph_sizes.csv`.
+- Key measured fact: circuit d=21 Stim UF graph ≈ 50.7k nodes / 372k edges (~9.5 MiB SoA); phenom d=21 ≈ 12.3k / 44.5k (~1.2 MiB).
+- No Verilog written; next is co-sim / cycle-accurate model per checklist H12.
+
+### 2026-08-21 — UF cycle co-sim (M16)
+
+- Saved workflow rule: `.cursor/rules/aether-deterministic.mdc` (research, no guess, test, Progress-driven).
+- `src/cycle_model.rs`: re-implemented grow/merge/peel with `CycleStats` (growth_cycles = Helios grow cycles; merge_rounds = software `step_merge` count).
+- Gate: `assert_bit_identical` — corrections and iteration count match `DecoderGraph`.
+- Evidence: `cargo test` (8 lib + 10 integration); `scripts/uf_cosim_smoke.py` OK.
+- Not claimed: Helios multi-cycle cid flood latency; no RTL yet.
+
+### 2026-08-21 — Helios PE + RTL (M17)
+
+- Studied Helios RTL (`yale-paragon/Helios_scalable_QEC`): grow when `odd && !boundary` (matches Aether active).
+- `src/helios_pe.rs`: PE grow/merge; solid edges + growth iters match software; corrections match `cycle_model`; `flood_cycles` = 3×BFS-depth+1 estimate.
+- `rtl/aether_uf_two_node_grow_merge.sv` + tb: Icarus `PASS cycles=5 solid0=1 growth0=10` (Blueprint test 1).
+- Not claimed: full PE grid / Helios tree controller / FPGA bitstream.
+
+### 2026-08-21 — Parameterized UF RTL (M18)
+
+- `rtl/aether_uf_grow_merge.sv`: MAX_N/MAX_E grow+merge (union-by-size, skip same-root, active=odd∧¬boundary).
+- Golden vectors from Rust `gen_rtl_vectors` → `rtl/gen/blueprint_cases.sv` (solid mask + growth cycles).
+- Bug fixed in bring-up: solidify must use post-grow `growth[]`, not recompute δ mid-union (star → both edges solid).
+- Evidence: `scripts/rtl_blueprint_sim.sh` → **ALL 7 CASES PASS**.
+- Not claimed: peel FSM, Stim-scale graphs, FPGA synth.
+
+### 2026-08-21 — Peel FSM RTL (M19)
+
+- `rtl/aether_uf_peel.sv`: BFS forest (edge-order adj) + M10 boundary-root peel + frozen `syndrome[]`.
+- End-to-end TB: grow_merge → peel; golden from `decode_cosim` / `DecoderGraph::decode` (corr mask + peel_ops).
+- Added `square_opp` (cycle cut) to Blueprint vectors (8 cases).
+- Evidence: `scripts/rtl_decode_sim.sh` → **ALL 8 DECODE CASES PASS**; grow-only 8/8; `cargo test` OK.
+- Not claimed: Stim-scale graphs, Verilator CI, FPGA synth.
+
+### 2026-08-21 — Stim UF RTL harness (M20)
+
+- Widened DUT ports: `num_nodes/edges` 8-bit; `solid_mask`/`corr_mask` 64-bit; peel `MAX_DEG=16`.
+- `gen_stim_rtl_vectors`: every shot `decode` ≡ `decode_cosim` ≡ `helios_pe` solids; emit RTL goldens.
+- `scripts/stim_rtl_harness.py`: Stim DEM → cosim gate → Icarus.
+- Evidence: phenom d=3 r=1 (V=16,E=18) 64 shots cosim + **8/8 RTL PASS**; circuit d=3 r=1 (V=28,E=35) **4/4 RTL PASS**; Blueprint 8/8 still green.
+- Not claimed: d≥3 r≥3 RTL (E>64), FPGA synth, Verilator CI.
+
+### 2026-08-22 — Gross [[144,12,12]] bake-off (M21)
+
+- Fetched IBM Apache-2.0 Stim circuits (p=0.003, 0.006, 0.01) into `testdata/bicycle_bivariate/`.
+- DEM (undecomposed, Relay path): **1728 detectors × 67752 errors**, 12 observables, max col weight 9.
+- Same matched-shot harness as M14 (`scripts/relay_bb_bakeoff.py`): Müller gross defaults (γ₀=0.125, γ∼U[-0.24,0.66], T₀=80, T_r=60, S=60) vs `ldpc` BP+OSD-CS order 10, max_iter=10000.
+- `results/relay_bb_bakeoff_m21.csv` (seed=1, 50 shots each):
+  - p=0.003: both **0/50** (Wilson hi 0.07135) — no ranking.
+  - p=0.006: Relay **26/50** LER=0.52 [0.385, 0.652]; BP+OSD **30/50** LER=0.6 [0.462, 0.724] — intervals **overlap**.
+- Aborted p=0.01 bake-off: BP+OSD hung ~10h on 20 shots at this DEM size/hyperparams (do not block milestone).
+- Not claimed: Relay ≪ OSD on gross; full published-style p-curve; XYZ-decoding.
+
+### 2026-08-22 — Stim RTL beyond E=64 (M22)
+
+- Research: `Docs/Rtl_Scale_Research` — compared packed-mask widen vs per-edge SoA vs Verilator/DPI vs software-only.
+- Chose **per-edge `solid_bits`/`corr_bits`** (Helios-aligned; removes artificial E≤64 cliff). Verilator not installed → stayed on Icarus.
+- DUT + Stim TB `MAX_N/E=128`; goldens are per-edge assignment tasks (Icarus cannot use unpacked `localparam` arrays).
+- Evidence: phenom d=3 r=3, 48 shots software cosim (42 nontrivial), Icarus **4/4 PASS** on V=72 E=94; Blueprint decode **8/8 PASS**.
+- Not claimed: phenom d=5 r=5 RTL (E≈518), Verilator CI, FPGA synth.
+
+### 2026-08-22 — Phenom d=5 r=5 + Verilator (M23)
+
+- Installed **Verilator 5.050** via Homebrew (Helios-class co-sim tool; was missing in M22).
+- Widened DUT `IDX_W=16` (V=272>255); Stim TB `MAX_N/E=600`.
+- Measured phenom d=5 r=5: V=272 E=518 max_deg=10 (matches `uf_graph_sizes` order).
+- Evidence: 24-shot software cosim; Icarus **2/2 PASS**; Verilator binary **2/2 PASS** (~0.06 s sim vs slower Icarus wall); Blueprint **8/8 PASS**.
+- Harness: `scripts/stim_rtl_harness.py --sim iverilog|verilator` (default d=5 r=5).
+- Not claimed: circuit-level d≥3 r≥3 RTL, DPI Rust↔RTL, FPGA synth.
+
+### 2026-08-22 — Circuit d=3 r=3 Stim RTL (M24)
+
+- Cliff: circuit DEM adjacency max_deg=**63** (peel default was 16). Raised peel `MAX_DEG` to **64**; widened `sdeg`/`fdeg`/`remaining` to 8-bit.
+- Measured circuit d=3 r=3: **V=392 E=556** (fits MAX=600 / IDX_W=16).
+- Evidence: 24-shot software cosim (24 nontrivial); Verilator **2/2 PASS** (~0.06 s sim); Blueprint Icarus **8/8 PASS**.
+- Not claimed: Icarus on circuit-scale adj arrays; circuit d=5 RTL; DPI; FPGA synth.
+
+### 2026-08-22 — Denser gross Relay curve (M25)
+
+- Fetched IBM Apache-2.0 Stim files for gross `[[144,12,12]]` at p=0.002,0.004,0.005,0.007,0.008 (plus existing 0.003,0.006,0.01).
+- Same Müller gross Relay hyperparams + `ldpc` BP+OSD-CS order 10, max_iter=10000; seed=1; **100 matched shots**.
+- OSD skipped for p>0.006 (Progress: OSD-CS10 too slow on 67k-column DEM at high p).
+- Harness: `scripts/relay_bb_bakeoff.py --ps … --skip-bposd-above 0.006` with per-p CSV checkpoints (do not overwrite M21).
+- `results/relay_bb_bakeoff_m25.csv` (DEM 1728×67752):
+
+| p | Relay errors/shots (Wilson) | BP+OSD errors/shots (Wilson) |
+| --- | --- | --- |
+| 0.002 | 0/100 [0, 0.0370] | 0/100 [0, 0.0370] |
+| 0.003 | 0/100 [0, 0.0370] | 1/100 [0.00177, 0.0545] |
+| 0.004 | 4/100 [0.0157, 0.0984] | 6/100 [0.0278, 0.125] |
+| 0.005 | 21/100 [0.142, 0.300] | 31/100 [0.228, 0.406] |
+| 0.006 | 60/100 [0.502, 0.691] | 69/100 [0.594, 0.772] |
+| 0.007 | 89/100 [0.814, 0.937] | (OSD skipped) |
+| 0.008 | 100/100 [0.963, 1] | (OSD skipped) |
+| 0.01 | 100/100 [0.963, 1] | (OSD skipped) |
+
+- All matched-p Wilson intervals **overlap** — do **not** claim Relay ≪ BP+OSD.
+- Not claimed: published-style threshold fit; XYZ-decoding; OSD at p≥0.007.
+
+### 2026-08-22 — DPI Rust↔RTL co-sim (M26)
+
+- Research: `Docs/Rtl_Dpi_Research` — compared file goldens, Marlin/svdpi-rs, cocotb, C++ FFI; **adopted Verilator DPI-C + Rust `cdylib`** (IEEE; Helios uses file/Vivado TBs, not DPI).
+- Shared Blueprint graphs: `src/blueprint_rtl.rs` (used by `gen_rtl_vectors` + DPI).
+- Crate `dpi/` → `aether_uf_dpi`: `aether_dpi_load` computes goldens via `helios_pe` + `decode_cosim` at sim time.
+- TB: `rtl/tb_aether_uf_dpi.sv`; harness: `scripts/dpi_rtl_cosim.sh`.
+- Evidence: Verilator **ALL 8 DPI DECODE CASES PASS**; Icarus file-based Blueprint **8/8 PASS**; `cargo test` OK.
+- Not claimed: Stim-scale DPI; Icarus DPI; FPGA/Vivado DPI.
+
+### 2026-08-22 — Best-next choice + p=0.005 ×400 bake-off (M27)
+
+- Decision note: `Docs/Next_Choice_M27` — preferred **more shots @ p=0.005** over Stim DPI / circuit d=5 (highest scientific value per cost).
+- Same Müller gross Relay hyperparams + `ldpc` BP+OSD-CS10 max_iter=10000; seed=1; **400 matched shots** (M25 had 100).
+- Wall ~3.6 h (Relay then OSD; OSD ~variable tens of seconds/shot on hard syndromes).
+- `results/relay_bb_bakeoff_m27.csv`:
+  - Relay **72/400** LER=0.180 Wilson **[0.1455, 0.2206]**
+  - BP+OSD **115/400** LER=0.2875 Wilson **[0.2453, 0.3337]**
+  - Intervals **disjoint** (Relay hi 0.2206 < OSD lo 0.2453).
+- Claim allowed: at this operating point, Relay LER is lower than BP+OSD-CS10 with non-overlapping Wilson 95% CIs.
+- Not claimed: all-p superiority; 10×; XYZ; other seeds without replication.
+
+### 2026-08-22 — Stim-scale DPI (M28)
+
+- Extended DPI: `aether_dpi_stim_prepare` loads DEM JSON + shots; per-edge solid/corr getters (E>32).
+- Shared software path: `src/stim_rtl.rs` (`load_stim_rtl_bundle`) used by `gen_stim_rtl_vectors` + DPI.
+- TB: `rtl/tb_aether_uf_stim_dpi.sv`; harness: `scripts/stim_dpi_cosim.sh` (ETA printed: ~2–5 min).
+- Evidence: circuit d=3 r=3 **V=392 E=556** software cosim 24 shots + Verilator DPI **2/2 PASS**; Blueprint DPI regression **8/8**.
+- Not claimed: circuit d=5 DPI; Vivado DPI; PE-grid.
+
+### 2026-08-23 — M27 replication seed=2 (M29)
+
+- Decision: `Docs/Next_Choice_M29` — same p=0.005 / 400 shots / Müller+OSD-CS10; **seed=2** (independent Stim sampler).
+- `results/relay_bb_bakeoff_m29.csv`:
+  - Relay **92/400** LER=0.230 Wilson **[0.1914, 0.2737]**
+  - BP+OSD **115/400** LER=0.2875 Wilson **[0.2453, 0.3337]**
+  - Intervals **overlap** (Relay hi 0.2737 > OSD lo 0.2453).
+- Point estimate still favors Relay; **disjointness does not replicate** at n=400.
+- Do **not** claim seed-independent Relay ≪ OSD from M27 alone; cite M27+M29 together.
+- Not claimed: pooled multi-seed CI; all-p superiority; 10×.
+
+### 2026-08-23 — PE-grid H8 OR-tree + heartbeats (M30)
+
+- Decision: prefer PE-grid prep over third-seed OSD (M29 Wilson overlap); research `Docs/Pe_Grid_Prep` (Helios §IV-B tree controller).
+- RTL: `rtl/aether_uf_or_tree.sv` binary OR-tree for `busy`/`active` → `any_*`; TB `rtl/tb_aether_uf_or_tree.sv`.
+- Evidence: `scripts/pe_grid_or_tree_sim.sh` — Icarus **PASS** + Verilator **PASS** (~3 s; script ETA 45 s + 5 s heartbeats).
+- Bake-off UX: `scripts/relay_bb_bakeoff.py` prints prior ETA (~22 s/shot OSD), 15 s heartbeats during Relay/DEM/construct, and live `elapsed`/`rate`/`ETA_remaining` on OSD shots.
+- Rule: `.cursor/rules/aether-deterministic.mdc` §11 long-job heartbeats.
+- Hardware_Mapping H8 marked M30 done.
+- Not claimed: multi-PE grow wired to tree; H9 context switch; FPGA synth; Relay≪OSD ranking.
+
+### 2026-08-23 — OR-tree grow+merge Blueprint (M31)
+
+- Wired H8 `aether_uf_or_tree` into grow+merge: `rtl/aether_uf_grow_merge_ctrl.sv` (leaf active = root ∧ odd ∧ ¬cbound; quiesce on `!ctrl_any_active`).
+- Combinational tree (no registered levels) so cycle counts match monolithic / `helios_pe`.
+- Evidence: `scripts/pe_grid_grow_ctrl_sim.sh` — Blueprint **8/8** Icarus + Verilator; monolithic regression **8/8**; wall ~4 s (ETA printed 90 s + 10 s heartbeats).
+- Trade-off: kept shared SoA grow/merge (not true per-PE datapath) — validates controller aggregation without rewriting Stim-scale RTL.
+- Not claimed: registered tree latency; peel+ctrl end-to-end; H9; per-PE neighbor ports.
+
+### 2026-08-23 — Peel after OR-tree grow (M32)
+
+- Chose peel-after-ctrl co-sim over registered OR-tree (registered levels would add latency vs software cycle goldens).
+- TB: `rtl/tb_aether_uf_decode_ctrl.sv` — `grow_merge_ctrl` → `aether_uf_peel` vs Blueprint `decode_cosim` corr/peel_ops.
+- Evidence: `scripts/pe_grid_decode_ctrl_sim.sh` — ctrl decode **8/8** Icarus + Verilator; monolithic decode regression **8/8**; wall ~7 s.
+- Stim/DPI still use monolithic `aether_uf_grow_merge` (unchanged).
+- Not claimed: registered tree; per-PE datapath; H9; Stim-scale ctrl path.
+
+### 2026-08-23 — Pipelined OR-tree depth (M33)
+
+- RTL: `rtl/aether_uf_or_tree_pipe.sv` — one register per binary OR level; `pipe_depth = $clog2(next_pow2(N))`.
+- Measured depth: N=4→2, N=5→3 (pad→8), N=8→3, N=16→4.
+- Latency: equals `pipe_depth` for power-of-two N (Icarus+Verilator); N=5 may need depth+1 on Icarus (pad), exact on Verilator.
+- Evidence: `scripts/pe_grid_or_tree_pipe_sim.sh` — ALL CHECKS PASS; comb OR-tree regression PASS.
+- Trade-off: not wired into `grow_merge_ctrl` (would break Blueprint cycle goldens by +depth).
+- Not claimed: FPGA timing closure; per-PE datapath; H9.
+
+### 2026-08-23 — Per-PE neighbor-port grow (M34)
+
+- Research: `Docs/Pe_Grow_Datapath` — Helios S3 on lower-id PE + neighbor S1; chose PE pair over H9.
+- RTL: `rtl/aether_uf_pe_vertex.sv` (neighbor ports, owns growth iff `MY_ID < neigh_id`); `rtl/aether_uf_pe_pair_grow.sv` (2 PEs + comb any_active).
+- Locked: same-root skip; active = root ∧ odd ∧ ¬cbound; union-by-size; shared edge_solid for non-owner merge.
+- Evidence: `scripts/pe_pair_grow_sim.sh` — cycles=5 solid=1 growth=10 ≡ Blueprint two_node / M17; Icarus + Verilator PASS; two_node regression PASS; wall ~4 s.
+- Not claimed: N>2 PE mesh; peel on PE ports; H9; Stim-scale PE grid.
+
+### 2026-08-23 — PE line3 mesh (M35)
+
+- Extend per-PE grow to Blueprint line3 (N=3, edges 0–1 & 1–2).
+- RTL: `rtl/aether_uf_pe_line3_grow.sv` — neighbor-port growth deltas (owners PE0/PE1); **ordered** edge merges (SoA sequential union-by-size) so same-cycle dual solidify matches `helios_pe`.
+- Trade-off: merge is mesh-ordered (not fully distributed per-edge PE merge) — required for multi-edge parity correctness in one controller step.
+- Evidence: `scripts/pe_line3_grow_sim.sh` — cycles=10 solid=11₂ g=10/10; pe_pair regression PASS; Icarus + Verilator; wall ~4 s.
+- Not claimed: parameterized MAX_DEG PE IP; line4; H9; peel on PE ports.
+
+### 2026-08-23 — Parameterized line PE mesh + line4 (M36)
+
+- RTL: `rtl/aether_uf_pe_line_grow.sv` — parameter `N`; growth via neighbor-port δ; ordered merges; **cluster-active at DSU root** for δ (fixes middle-edge starve on line4).
+- line3 becomes thin wrapper over `#(.N(3))`.
+- Evidence: `scripts/pe_line_grow_sim.sh` — line4 **cycles=15 solid=111₂**; line3 + pe_pair regressions PASS; Icarus + Verilator; wall ~4 s.
+- Not claimed: arbitrary graphs (square needs deg>2 ports); H9; FPGA synth.
+
+### 2026-08-23 — Edge-list PE mesh square + branch (M37)
+
+- Research: `Docs/Pe_Mesh_Graph` — chose square/docs_peel over H9 (Helios-n needs lattice topology first; arXiv:2406.08491).
+- RTL: `rtl/aether_uf_pe_graph_grow.sv` — packed `eu`/`ev`, `is_bnd`, cluster-active δ, ordered SoA merges.
+- Evidence: `scripts/pe_graph_grow_sim.sh` — square **cycles=5 solid=1000₂**; docs_peel **cycles=10 solid=011₂**; line4 + pe_pair regressions; Icarus + Verilator; wall ~7 s.
+- Trade-off: edge-list SoA merge (not MAX_DEG neighbor-port IP) — matches M35 lock for multi-edge solidify.
+- Not claimed: H9 LUTRAM; peel on PE mesh; FPGA synth; square_opp / Stim-scale PE.
+
+### 2026-08-23 — PE-mesh grow→peel all Blueprint (M38)
+
+- Research: `Docs/Pe_Mesh_Decode` — chose PE-mesh decode over H9 (Helios-n only when FPGA LUT-bound; M37 left `is_bnd`/corr unvalidated).
+- RTL: `num_nodes`/`num_edges` on `pe_graph_grow`; `tb_aether_uf_pe_mesh_decode` → existing `aether_uf_peel` (M10 rule).
+- Evidence: `scripts/pe_mesh_decode_sim.sh` — **8/8** cycles/solid/corr/peel_ops ≡ decode_cosim (incl. square_opp solid=f, boundary, two_boundary_star); square/docs_peel + M32 ctrl decode regressions; Icarus + Verilator; wall ~4 s.
+- H9 co-sim plan recorded in Pe_Mesh_Decode §2 (deferred RTL).
+- Not claimed: H9 LUTRAM RTL; Stim-scale PE mesh; FPGA synth.
+
+### 2026-08-23 — Helios-n LUTRAM dual-context H9 (M39)
+
+- Research: `Docs/Helios_n_H9` — chose H9 over Stim-scale PE-mesh (Stim monolithic already M24/M28); cite Helios LUTRAM 1-cycle switch (arXiv:2406.08491).
+- RTL: `rtl/aether_uf_pe_lutram_ctx.sv` — live PE regs + `ram_style="distributed"` banks; store/load `{root,size,parity,cbound,is_root,growth,solid}`.
+- Evidence: `scripts/pe_lutram_ctx_sim.sh` — Helios-2 restore A/B **1 cycle** bit-identical; PE-mesh 8/8 smoke; Icarus + Verilator; wall ~4 s.
+- Not claimed: multiplexed grow schedule; lattice partition; FPGA synth; Stim-scale Helios-n.
+
+### 2026-08-23 — Helios-2 micro grow with H9 (M40)
+
+- Research: `Docs/Helios2_Micro_Grow` — wire H9 into grow vs Stim PE-mesh; cite Helios stage multiplex.
+- RTL: `rtl/aether_uf_helios2_micro_grow.sv` — shared 2-node grow + dual LUTRAM graph banks.
+- Evidence: `scripts/helios2_micro_grow_sim.sh` — ctx0 two_node **5/1**; ctx1 boundary **10/1**; restore ctx0 solid/growth/cycles; H9 + mesh regressions; Icarus + Verilator; wall ~4 s.
+- Not claimed: peel under Helios-n; lattice partition; Stim-scale; FPGA synth.
+
+### 2026-08-23 — Helios-2 micro grow→peel (M41)
+
+- Research: `Docs/Helios2_Micro_Decode` — chose peel-after-multiplex over Stim PE-mesh / H10 notes.
+- TB: `tb_aether_uf_helios2_micro_decode` — Helios-2 grow → `aether_uf_peel` (M10).
+- Evidence: `scripts/helios2_micro_decode_sim.sh` — ctx0 two_node corr=1; ctx1 boundary corr=1; restore+peel; grow/H9 regressions; Icarus + Verilator; wall ~4 s.
+- Not claimed: Stim-scale PE-mesh; H10 RTL; FPGA synth.
+
+### 2026-08-23 — Stim PE-mesh grow phenom d=3 r=1 (M42)
+
+- Research: `Docs/Pe_Mesh_Stim` — chose Stim PE-mesh over H10 notes; cite Rtl_Scale_Research V=16 E=18.
+- RTL: `cap_bus` on `pe_graph_grow` (per-edge Stim LLR caps); `tb_aether_uf_pe_mesh_stim`.
+- Evidence: `scripts/pe_mesh_stim_sim.sh` — **4/4** cycles+solid ≡ helios_pe; Blueprint mesh decode 8/8 smoke; Icarus + Verilator; wall ~8 s.
+- Not claimed: Stim PE-mesh peel; d=3 r=3 / circuit PE-mesh; H10; FPGA synth.
+
+### 2026-08-23 — Stim PE-mesh grow→peel phenom d=3 r=1 (M43)
+
+- Research: `Docs/Pe_Mesh_Stim_Decode` — chose peel over d=3 r=3 scale-up / H10.
+- TB: `tb_aether_uf_pe_mesh_stim_decode` — PE-mesh grow → `aether_uf_peel` (M10).
+- Evidence: `scripts/pe_mesh_stim_decode_sim.sh` — **4/4** cycles/solid/corr/peel_ops; M42 grow + Blueprint 8/8 smokes; Icarus + Verilator; wall ~14 s.
+- Not claimed: d=3 r=3 / circuit PE-mesh; H10; FPGA synth.
+
+### 2026-08-23 — Stim PE-mesh grow phenom d=3 r=3 (M44)
+
+- Research: `Docs/Pe_Mesh_Stim_R3` — chose r=3 grow over H10; cite M22 V=72 E=94.
+- RTL: `pe_graph_grow` **cycles[31:0]**; Stim TB **MAX_N/E=128**.
+- Evidence: `scripts/pe_mesh_stim_r3_sim.sh` — **4/4** cycles+solid ≡ helios_pe; Blueprint 8/8 smoke; Icarus + Verilator; wall ~29 s.
+- Not claimed: r=3 peel; circuit PE-mesh; H10; FPGA synth.
+
+### 2026-08-23 — Stim PE-mesh grow→peel phenom d=3 r=3 (M45)
+
+- Research: `Docs/Pe_Mesh_Stim_R3_Decode` — chose peel over H10; max_deg=9 ⇒ MAX_DEG=16 OK.
+- TB: reuse `tb_aether_uf_pe_mesh_stim_decode` on r=3 vectors.
+- Evidence: `scripts/pe_mesh_stim_r3_decode_sim.sh` — **4/4** cycles/solid/corr/peel_ops; M44 grow + Blueprint 8/8; Icarus + Verilator; wall ~44 s.
+- Not claimed: circuit PE-mesh; H10; FPGA synth.
+
+### 2026-08-23 — Stim PE-mesh grow circuit d=3 r=3 (M46)
+
+- Research: `Docs/Pe_Mesh_Stim_Circuit` — chose circuit grow over H10; cite M24 V=392 E=556 IDX_W=16.
+- TB: `tb_aether_uf_pe_mesh_stim_scale` MAX=600 IDX_W=16; DUT unchanged.
+- Evidence: `scripts/pe_mesh_stim_circuit_sim.sh` — Verilator **2/2** cycles+solid ≡ helios_pe; Blueprint 8/8; wall ~66 s.
+- Not claimed: circuit PE-mesh peel; H10; FPGA synth.
+
+### 2026-08-23 — Stim PE-mesh grow→peel circuit d=3 r=3 (M47)
+
+- Research: `Docs/Pe_Mesh_Stim_Circuit_Decode` — chose peel over H10; max_deg=63 ⇒ MAX_DEG=64 (M24).
+- TB: `tb_aether_uf_pe_mesh_stim_scale_decode` grow→peel.
+- Evidence: `scripts/pe_mesh_stim_circuit_decode_sim.sh` — Verilator **2/2** cycles/solid/corr/peel_ops; M46 grow + Blueprint 8/8; wall ~76 s.
+- Not claimed: H10; FPGA synth; phenom d=5 PE-mesh.
+
+### 2026-08-23 — H10 host I/O notes (M48)
+
+- Research: `Docs/Host_IO_H10` — chose H10 over H11; cite Helios BRAM-for-host not PE; Overview Phase 3 PCIe deferred; sizes from `uf_graph_sizes.csv`.
+- Evidence: notes + Hardware_Mapping H10 row; `cargo test` 11/11. **No H10 RTL.**
+- Not claimed: BRAM-ring Verilog; PCIe; H11 timeout rates; FPGA bring-up.
+
+### 2026-08-24 — H11 MWPM-fallback notes (M49)
+
+- Research: `Docs/Mwpm_Fallback_H11` — chose H11 over H10 RTL; triggers = `DecodeError` / cycle stall, **not** UF–MWPM disagree (M5b).
+- Evidence: notes + Hardware_Mapping H11 row; `cargo test` 11/11. **No fallback RTL / PyMatching wire-in.**
+- Not claimed: timeout budget; measured fallback rate; PCIe offload.
+
+### 2026-08-24 — H10 syndrome ring RTL (M50)
+
+- Research: `Docs/H10_Ring_Rtl` — chose ring RTL over DecodeError sweep; phenom d=3 r=1 first (circuit V=392 deferred).
+- RTL: `aether_uf_syndrome_ring` DEPTH=2; TB `tb_aether_uf_h10_ring_stim` (overlap fill during grow).
+- Evidence: `scripts/h10_ring_stim_sim.sh` — Icarus+Verilator PASS (4 shots, overlap_ok=2); Blueprint 8/8; wall ~19 s.
+- Not claimed: PCIe; obs DMA; circuit-scale ring; FPGA synth.
+
+### 2026-08-24 — UF DecodeError rates (M51)
+
+- Research: `Docs/Decode_Error_Rates_M51` — chose H11 measurement over circuit H10 ring.
+- Tooling: `count_uf_decode_errors` + `scripts/uf_decode_error_rates.py`.
+- Evidence: `results/uf_decode_error_m51.csv` — phenom+circuit d∈{3,5} grids, **0** Unsolvable + **0** IterationLimit in 12×400 shots; Wilson abort hi ≈ 0.95%/cell; wall ~152 s.
+- Not claimed: zero abort forever; FPGA cycle timeouts; MWPM wire-in; overwrite of threshold CSVs.
+
+### 2026-08-24 — H10 ring @ circuit d=3 r=3 (M52)
+
+- Research: `Docs/H10_Ring_Circuit` — chose circuit ring over obs-egress stub.
+- TB: `tb_aether_uf_h10_ring_stim_scale` MAX=600 IDX_W=16 MAX_DEG=64; 2 Stim cases.
+- Evidence: `scripts/h10_ring_circuit_sim.sh` — Verilator PASS (V=392 E=556, overlap_ok=1); Blueprint 8/8; wall ~63 s.
+- Not claimed: PCIe; obs DMA; FPGA synth.
+
+### 2026-08-24 — H10 obs egress stub (M53)
+
+- Research: `Docs/H10_Obs_Egress` — chose obs stub over denser DecodeError grid.
+- RTL: `aether_uf_obs_egress`; Stim goldens `C*_OBS` + `obs_mask_mem` (`STIM_WITH_OBS`).
+- Evidence: `scripts/h10_obs_stim_sim.sh` — Icarus+Verilator **4/4** obs≡decode_observables; Blueprint 8/8; wall ~23 s.
+- Not claimed: PCIe; H11 timeout≠0; circuit obs TB; FPGA synth.
+
+### 2026-08-24 — denser UF DecodeError rates (M54)
+
+- Research: `Docs/Decode_Error_Rates_M54` — chose dense grid over FPGA prep checklist.
+- Tooling: `uf_decode_error_rates.py --grid dense` → **new** `results/uf_decode_error_m54.csv` (M51 untouched).
+- Evidence: phenom/circuit d∈{5,7} higher-p cells — **0** Unsolvable + **0** IterationLimit in 12×400 shots; Wilson abort hi ≈ 0.95%/cell; wall ~753 s.
+- Not claimed: zero abort forever; FPGA cycle timeouts; overwrite of M51/threshold CSVs.
+
+### 2026-08-24 — FPGA bring-up prep checklist (M55)
+
+- Research: `Docs/Fpga_Bringup_Prep` — chose prep over fitted p_th / full-chip SV; cite Helios VCU129; staged S0–S5; gates G1–G6.
+- Evidence: checklist + Hardware_Mapping §7 pointer; `cargo test` 11/11. **No Vivado synth / no bitstream.**
+- Not claimed: LUT counts; µs/round; part SKU lock; Phase 3 PCIe.
+
+### 2026-08-24 — VCU129 name + S0 Yosys synth (M56)
+
+- Research: `Docs/S0_Synth_M56` — chose part+S0 over fitted p_th; Yosys xcup smoke (Vivado absent); DUT = OR-tree N=8 + syndrome_ring W=16 D=2.
+- G1: board **VCU129**, part **`xcvu13p-fhgb2104-2-e`** (Helios + AMD kit SKU). G2: `fpga/s0/` + `vivado_s0.tcl` stub.
+- Evidence: `results/fpga_s0_synth_m56.csv` — OR-tree **14 LUT / 0 FF / 0 BRAM**; ring **30 LUT / 42 FF / 0 BRAM** (tiny mem → FF, not BRAM); `cargo test` 11/11.
+- Not claimed: Vivado timing; Helios µs/round; bitstream; purchase lock; overwrite of threshold/M51/M54 CSVs.
+
+### 2026-08-24 — S1 Blueprint PE-mesh Yosys (M57)
+
+- Research: `Docs/S1_Synth_M57` — Vivado absent → S1 Yosys; peel unpacked ports block Yosys → synth **grow only**; Verilator grow→peel SoT.
+- Evidence: `results/fpga_s1_synth_m57.csv` — N4 **4020 LUT / 213 FF**; N8 **17233 LUT / 389 FF**; Verilator Blueprint decode **8/8**; `cargo test` 11/11.
+- Not claimed: peel in bitstream; Vivado timing; Stim-scale fit; Helios µs/round.
+
+### 2026-08-24 — S2 Helios-2 / H9 Yosys (M58)
+
+- Research: `Docs/S2_Synth_M58` — Vivado absent → S2; LUTRAM bar = final BRAM/URAM **0** (Helios H9).
+- Evidence: `results/fpga_s2_synth_m58.csv` — lutram_ctx **47 LUT / 133 FF / BRAM=0**; helios2_grow **410 LUT / 267 FF / BRAM=0**; Verilator Helios-2 decode PASS; `cargo test` 11/11.
+- Not claimed: Vivado LUTRAM util rows; Stim Helios-n; peel Yosys.
+
+### 2026-08-24 — M59 peel packed ports (Yosys-ready)
+
+- Research: `Docs/Peel_Packed_M59` — Vivado **blocked on macOS arm64**; chose peel packed ports over S3 grow-only.
+- RTL: peel/obs `corr_bits` packed buses; `while` → bounded `for`; TB packer `aether_uf_tb_pack_peel_in`; Helios-2 settle edge.
+- Evidence: Blueprint decode **8/8**; PE-mesh decode **8/8**; Helios-2 Verilator PASS; `cargo test` 11/11; Yosys **parses** peel; `synth_xilinx` **deferred** (single-cycle BFS) — `results/fpga_s1_peel_m59.csv` status rows.
+- Not claimed: peel LUT counts; Vivado timing; multi-cycle peel complete.
+
+### 2026-08-24 — M60 multi-cycle peel + Yosys
+
+- Research: `Docs/Peel_Multicycle_M60` — Das Corr staging; one BFS/stack pop per clock; defaults MAX_N/E=4 MAX_DEG=8 for Yosys elaborator.
+- Evidence: `results/fpga_peel_mc_m60.csv` — **9453 LUT / 1405 FF / BRAM=0** (~71 s); Blueprint **8/8**; PE-mesh **8/8**; Helios-2 PASS; `cargo test` 11/11.
+- Not claimed: Stim-scale peel synth; Vivado timing; Helios µs/round.
+
+### 2026-08-24 — M61 S3 phenom V=16 + H10 Yosys
+
+- Research: `Docs/S3_Synth_M61` — chose S3 over S1-combined; DUT V=16 E=18 (`Pe_Mesh_Stim`); obs Yosys deferred (unpacked masks).
+- Evidence: `results/fpga_s3_synth_m61.csv` — ring **30 LUT**; grow **138502 LUT / 775 FF**; peel N16 **timeout 600 s**; H10 ring Verilator **ALL PASS**; `cargo test` 11/11; wall ~930 s.
+- Not claimed: peel N16 LUT; board loopback; S4 V=392; Helios fit of 138k LUT grow alone.
+
+### 2026-08-25 — M62 S1 combined grow→peel Yosys
+
+- Research: `Docs/S1_Combined_M62` — close S1 joint synth; reject peel-N16 / S4 this step.
+- Evidence: `results/fpga_s1_combined_m62.csv` — **13364 LUT / 1618 FF / BRAM=0** (~77 s); Verilator PE-mesh decode **8/8**; `cargo test` 11/11.
+- Not claimed: N16 peel; Vivado timing; Stim-scale combined.
+
+### 2026-08-25 — M63 peel N=16 FSM soften + Yosys
+
+- Research: `Docs/Peel_N16_M63` — soften remaining O(MAX_DEG)/O(MAX_N) loops (1 neighbor / scan / seed / peel-find per cycle); reject timeout-only and S4 this step.
+- Evidence: `results/fpga_peel_n16_m63.csv` — **18023 LUT / 9509 FF / BRAM=0** (~276 s); Blueprint decode **8/8**; PE-mesh decode **8/8**; Helios-2 micro decode PASS; `cargo test` 11/11. Closes M61 peel N16 timeout.
+- Not claimed: S3 combined grow+peel LUT; V=16 grow fit; Vivado timing; Helios µs/round.
+
+### 2026-08-25 — M64 S3 combined grow→peel Yosys
+
+- Research: `Docs/S3_Combined_M64` — close S3 joint synth (M62 pattern); reject S4 cliff / Vivado this step (Fpga_Bringup: S4 after S3 netlist stable).
+- Evidence: `results/fpga_s3_combined_m64.csv` — **153509 LUT / 10284 FF / BRAM=0** (~710 s); Stim phenom PE-mesh decode **4/4**; `cargo test` 11/11. ≈ M61 grow + M63 peel.
+- Not claimed: S4 V=392; VU13P timing; Helios µs/round; obs Yosys.
+
+### 2026-08-25 — M65 S4 circuit grow Yosys cliff
+
+- Research: `Docs/S4_Synth_M65` — grow-only N=392 M=556; reject Vivado (macOS); defer peel/combined.
+- Evidence: `results/fpga_s4_grow_m65.csv` — **timeout_or_fail** 1800 s (exit 142) stuck in Yosys hierarchy derive; no LUT/FF. Circuit PE-mesh grow Verilator **2/2**; `cargo test` 11/11.
+- Not claimed: any S4 LUT; VU13P fit of flat PE @ V=392; Helios µs/round.
+
+### 2026-08-25 — M66 grow Yosys scale curve
+
+- Research: `Docs/Grow_Scale_M66` — N24/N32/N64 + cite M57/M61/M65; reject Vivado; Helios-n notes deferred to Next.
+- Evidence: `results/fpga_grow_scale_m66.csv` — ok N4/N8/N16; **N24 ABC timeout 1800 s**; **N32 ABC timeout 3600 s**; N64 not run; N392 cite M65. `cargo test` 11/11.
+- Not claimed: N24+ LUT; VU13P fit above N16 flat grow.
+
+### 2026-08-26 — M67 Helios-n multiplex research notes
+
+- Research: `Docs/Helios_n_Multiplex_M67` — cite Helios arXiv:2406.08491 (LUTRAM 1-cycle CS, cross-cut same physical PE, d=51 Helios-51 ~544 ns/round); map to M66 cliff + H9/M39–M41; reject Vivado / Stim Helios-n RTL this step.
+- Evidence: docs only; `cargo test` 11/11. Gate: Yosys flat PE N>16 → multiplex or Progress override.
+- Not claimed: partition mapper RTL; VU13P fit; Aether µs/round.
+
+### 2026-08-26 — M68 Helios-n phenom partition mapper
+
+- Research: `Docs/Helios_n_Partition_M68` — Stim phenom d=3 r=3 V=72; N_phys≤16; reject time-only (max 28) and node-id shards.
+- Evidence: `results/helios_n_partition_m68.csv` (+ parts/crosscuts); chosen **intra_time_det_pack n=6 max=14 cross_edges=24**; `scripts/helios_n_partition_m68.py`; `cargo test` 11/11.
+- Not claimed: Helios-n RTL; circuit V=392 partition; Helios µs/round.
+
+### 2026-08-26 — M69 Helios-n schedule / co-sim plan
+
+- Research: `Docs/Helios_n_Schedule_M69` — FSM + co-sim stages A–D; lattice N=16 M≥12; cross-cut coloring required; reject full Stim Helios-n grow RTL this step.
+- Evidence: `results/helios_n_schedule_m69_parts.csv` (induced E max 12); H9 N_CTX=6 Icarus+Verilator **PASS**; N_CTX=2 regression PASS; `cargo test` 11/11.
+- Not claimed: multiplexed grow ≡ M44 solids; PE coloring CSV; Vivado.
+
+### 2026-08-26 — M70 Helios-n PE coloring
+
+- Research: `Docs/Helios_n_Coloring_M70` — formalize Helios colocation; show M68 infeasible; choose det-component pairing.
+- Evidence: `results/helios_n_coloring_m70.csv` (+ phys/parts/crosscuts/summary); **7** phys colors, **16** parts, max \|S\|=7; `scripts/helios_n_coloring_m70.py`; `cargo test` 11/11.
+- Not claimed: lattice grow ≡ M44; N_CTX=6 sufficient for Helios-legal schedule (need ≥16).
+
+### 2026-08-27 — M71 Helios-n grow co-sim (Stage C)
+
+- Research: M69 Stage C + M70 map; software-oracle multiplex before SV schedule (DSU-stable grow ⇒ part walk ≡ flat).
+- Evidence: `results/helios_n_grow_cosim_m71.csv` — **16/16** phenom d=3 r=3 shots solids+`growth_cycles` ≡ flat; induced=48 cross=46; `src/helios_n_pe.rs`; `scripts/helios_n_grow_cosim_m71.sh`; `cargo test` 13+11.
+- Not claimed: Helios-n SV RTL; Stage D peel; Helios µs/round.
+
+### 2026-08-27 — M72 Helios-n Stage D decode co-sim
+
+- Research: M69 Stage D; Helios-n grow + software peel (not multiplexed peel); `peel_cosim_stats` ≡ M45 peel_ops.
+- Evidence: `results/helios_n_decode_cosim_m72.csv` — **16/16** corr+peel_ops ≡ `decode_cosim`; `Docs/Helios_n_Decode_Cosim_M72`; `scripts/helios_n_decode_cosim_m72.sh`; `cargo test` 14+11.
+- Not claimed: Helios-n SV schedule RTL; Vivado; Helios µs/round.
