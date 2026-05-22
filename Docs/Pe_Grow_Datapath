@@ -1,0 +1,63 @@
+# Per-PE grow datapath (M34) — neighbor ports before Helios-n
+
+**Status:** Research + first H1/H2 PE-pair RTL. No Helios-n (H9) yet.  
+**Locked refs:** Helios arXiv:2406.08491 / 2301.08419 (§IV: S3 on lower-id PE, neighbor S1 links); `Docs/Hardware_Mapping` H1–H5, H8; `src/helios_pe.rs`; Aether active = odd ∧ ¬`cluster_boundary`.
+
+---
+
+## 1. Choice (Next from Progress)
+
+| Option | Why now / not |
+| --- | --- |
+| **True per-PE grow (neighbor ports)** | Listed first after M33; unlocks H1/H2 with co-sim |
+| Helios-n LUTRAM (H9) | Needs PE context map after PE datapath exists |
+| Third seed OSD | M29 Wilson overlap — ranking not required |
+
+**Chosen:** per-PE grow. **Rejected:** H9 this milestone; copying Helios Verilog (license + Aether boundary semantics).
+
+---
+
+## 2. Helios PE facts (cite, do not invent)
+
+From Helios / arXiv:2301.08419 §IV:
+
+- One PE per decoding-graph vertex.
+- Shared **S3** (`e.growth`) lives on the incident PE with the **lower id**.
+- Adjacent PEs read each other’s **S1** (cid / odd / …) over neighbor links.
+- Growth: lower-id PE increases `e.growth` by contributions from active endpoints (both odd → +2 in Helios; Aether uses active = odd ∧ ¬boundary → δ ∈ {0,1,2}).
+
+Aether locked deltas vs Helios:
+
+| Item | Aether |
+| --- | --- |
+| H3 | Skip growth if same DSU root |
+| H4 | Active = odd ∧ ¬`cluster_boundary` |
+| H5 | Union-by-**size** (not Helios min-cid) until peel-equivalence proven |
+
+---
+
+## 3. Smallest validated RTL slice
+
+| Artifact | Role |
+| --- | --- |
+| `rtl/aether_uf_pe_vertex.sv` | One PE: neighbor port (root/active/size/parity/cbound), owns growth iff `MY_ID < neigh_id` |
+| `rtl/aether_uf_pe_pair_grow.sv` | Two PEs + edge + comb OR any_active; Blueprint `two_node` schedule |
+| `rtl/tb_aether_uf_pe_pair_grow.sv` | Expect cycles=5, solid=1 (same as M17 / C0) |
+| `scripts/pe_pair_grow_sim.sh` | ETA + heartbeats; Icarus + Verilator |
+
+**Out of scope M34:** N>2 PE grid, peel on PE ports, H9 context switch, FPGA synth, min-cid union.
+
+**M35:** line3 mesh.  
+**M36:** `rtl/aether_uf_pe_line_grow.sv` parameterized `N` (line3 wrapper + line4); δ uses cluster-active at root.  
+**M37:** `rtl/aether_uf_pe_graph_grow.sv` edge-list (square + docs_peel); see `Docs/Pe_Mesh_Graph`.
+
+---
+
+## 4. Alternatives considered
+
+| Alternative | Why rejected now |
+| --- | --- |
+| Keep only SoA `grow_merge` / `grow_merge_ctrl` | Does not exercise neighbor ports (Progress Next) |
+| Full parameterized N-PE mesh | Too large; validate pair first vs known golden |
+| Helios-n LUTRAM first | H9 after PE datapath (Pe_Grid_Prep §5) |
+| Wire pipelined OR-tree into PE pair | Would add +depth vs software cycles; keep comb OR for goldens |

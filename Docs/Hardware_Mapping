@@ -1,0 +1,200 @@
+# Aether Union-Find — Hardware Mapping Notes
+
+**Status:** M15–M69 + **M70** PE coloring (`Docs/Helios_n_Coloring_M70`). No Vivado bitstream / no Stim Helios-n grow RTL.  
+**Last updated:** 2026-08-26 (M70 coloring)  
+**Software source of truth:** `src/{types,graph,dsu,engine,peeling,compiled}.rs`  
+**Measured graph sizes:** `results/uf_graph_sizes.csv` (from `scripts/uf_graph_sizes.py`)
+
+These notes map the **existing integer SoA Union-Find** onto published FPGA micro-architectures. They correct several claims in `Docs/Overview` / `Docs/Analysis` where those docs conflict with literature or with Aether’s locked software decisions.
+
+---
+
+## 1. References (read these; do not invent PE layouts)
+
+| Ref | Role |
+| --- | --- |
+| Delfosse & Nickerson, *Almost-linear time decoding…*, arXiv:1709.06218 | Algorithmic UF (growth + merge + peel). |
+| Das et al., *A Scalable Decoder Micro-architecture…*, arXiv:2001.06598 | Centralized **3-stage pipeline**: Graph Generator → DFS spanning tree → Correction (peeling). Memory budget formulas for STM / root / size tables. |
+| Maurya et al. (Helios), *FPGA-based Distributed Union-Find…*, arXiv:2406.08491 (IEEE TQE 2024) | **One PE per decoding-graph vertex**, hybrid tree-grid controller, shared-memory S1/S2/S3, LUTRAM context-switch (not BRAM for PE state). VCU129: d≤21 phenom / d≤17 circuit without multiplexing; Helios-n scales to d=51. Reported avg latency **11.5 ns/round** (d=21, p=0.001 phenom), **~23.7 ns/round** (d=17 circuit-level). |
+| Müller et al., Relay-BP, arXiv:2506.01779 + follow-on FPGA work | Separate path for **qLDPC** (message-passing). Out of scope for UF PE grid. |
+
+Aether Phase 2 should treat **Helios** as the primary distributed PE template and **Das 2020** as the primary pipelined/peeling template. Do not invent a third PE ISA without citing a paper.
+
+---
+
+## 2. What Aether software actually stores (SoA → memory banks)
+
+From `DecoderGraph` (`src/graph.rs`):
+
+### 2.1 Per-vertex banks (index = `NodeId`)
+
+| Field | Width (SW) | Hardware role | Helios analog |
+| --- | --- | --- | --- |
+| `parent` | `usize` | DSU parent / spanning-tree parent for peel | `v.parent` (S1) |
+| `size` | `u32` | Union-by-**size** (not rank) | size table (Das) / implicit via cid tree (Helios uses min-id) |
+| `parity` | `u8` | Live cluster parity π(C) at **root only** | related to `v.odd` / `v.st_odd` |
+| `syndrome` | `u8` | **Frozen** measured defect; never written by `union` | `v.m` (measurement); peel uses this, not live parity |
+| `is_boundary` | `u8` | Virtual boundary vertex (degree-1 DEM) | boundary flag / open-boundary PE |
+| `cluster_boundary` | `u8` | Root flag: cluster touched a boundary | must be OR-merged on union (Aether-specific vs plain Helios odd-only) |
+
+### 2.2 Per-edge banks (index = `EdgeId`)
+
+| Field | Width (SW) | Hardware role | Helios analog |
+| --- | --- | --- | --- |
+| `edge_u`, `edge_v` | `usize` | Endpoints (static after compile) | adjacency lists / neighbor ports |
+| `capacity` | `u32` | \(W_e = 2\lfloor\lambda\ln((1-p)/p)\rfloor\), λ=1000 default | `e.w` (fixed at compile) |
+| `growth` | `u32` | Integer growth; solid when `growth ≥ capacity` | `e.growth` (S3; Helios stores on lower-id PE) |
+| `state` | enum | Empty / Solid | fully-grown bit |
+| `obs_mask` | `u64` | Logical observable flips for this DEM column | correction datapath (not in Helios PE core) |
+
+### 2.3 Global scalars
+
+| Field | Role |
+| --- | --- |
+| `total_active_parity` | Count of clusters that are odd **and** not on boundary (= Helios “any `codd`” controller input, with boundary neutralization). |
+
+**Locked software rules that hardware must preserve** (see `Docs/Progress` mistakes table):
+
+1. Skip growth when `find(u)==find(v)` (intra-cluster).
+2. Peel from frozen `syndrome[]`, never DSU-mutated `parity[]`.
+3. Union-by-size + iterative two-pass path compression (or Helios min-`cid` spanning tree **if** proven equivalent for peel — do not mix without a co-sim check).
+4. Unique virtual boundary PE per degree-1 DEM error (not one global boundary).
+5. Active cluster ⇔ odd ∧ ¬`cluster_boundary`.
+
+---
+
+## 3. Two published micro-architectures (choose deliberately)
+
+### 3.A Distributed PE grid (Helios / Maurya 2024) — preferred for Aether Overview “PE per vertex”
+
+- **Topology:** PEᵢ ↔ PEⱼ only if an edge exists in the Stim decoding graph (after graphlike DEM compile). For surface-code space-time cubes this is mostly local; **circuit-level DEMs are denser** than 4-neighbor (see §4).
+- **Stages (Helios Alg. 2):** Growing → (Merging ∥ Checking) until stable → correction along `parent` tree.
+- **Shared memories:**
+  - **S1** (PE-local R/W, neighbor RO): `cid`, `odd`, `parent`, `st_odd`
+  - **S2** (controller): `codd`, `busy` (Helios also tracks stage; FPGA simplification can keep stage local)
+  - **S3** (edge growth): written by either incident PE; **must be atomic** compare-and-add
+- **Controller:** tree of aggregators for OR of `busy` / OR of `codd` — not a single global bus (Helios §IV-B).
+- **Memory tech (literature fact):** Helios maps PE context / local PE state to **LUTRAM / registers**, **not BRAM**. Overview’s “dual-port BRAM banks for clustering” is wrong for PE state. BRAM is appropriate for **compiled static tables** (capacities, adjacency, obs masks) and for **host/PCIe buffers**, not for every PE register file.
+- **Worst-case cycle bound (Helios FPGA):** \(O(d^4)\) cycles with growth 1 cycle/iteration and merge broadcasts \(O(d^3)\); avg latency much lower (reported numbers in §1).
+
+**Aether delta vs Helios:** open-boundary neutralization via `cluster_boundary` and per-edge virtual boundary vertices. Controller “odd” must mean **active** as defined above, or neutralized clusters will keep growing forever.
+
+### 3.B Pipelined units (Das 2020) — preferred for peeling co-design
+
+- **Gr-Gen:** cluster growth + union (Fusion Edge Stack).
+- **DFS engine:** spanning tree → edge stack (order reversed for peel).
+- **Corr engine:** peel with syndrome-hold registers; update Pauli / observable log.
+- **Sharing:** decoder blocks time-multiplex Gr-Gen / DFS / Corr across logical qubits (α, β ratios in paper).
+- **Memory estimate (paper Table II, cubic lattice):** STM ~ \(7d^3\) bits; root/size tables ~ \(3d^3\log_2(d)\) bits each. Use as a **lower bound** only — Stim circuit DEMs have more edges than a pure cubic lattice (§4).
+
+Aether’s `peeling.rs` (boundary-root BFS, multi-boundary stars) aligns with Corr-engine semantics; any RTL peel must include the M10 boundary-root rule.
+
+---
+
+## 4. Measured Stim graph sizes (Aether UF path)
+
+Circuit: Stim `surface_code:rotated_memory_z`, rounds = d, `p = 0.003`.  
+DEM: `decompose_errors=True` + `dem_to_payload` (graphlike).  
+Nodes \(V\) = detectors + **one boundary vertex per degree-1 error**.  
+Reproduce:
+
+```bash
+PYTHONPATH=python python3 scripts/uf_graph_sizes.py --out results/uf_graph_sizes.csv
+```
+
+Selected rows from that CSV (SoA bytes = §2 packing):
+
+| noise | d | V | E | SoA working set |
+| --- | ---: | ---: | ---: | ---: |
+| phenom | 5 | 272 | 518 | ~15 KiB |
+| phenom | 11 | 2132 | 6170 | ~177 KiB |
+| phenom | 21 | 12262 | 44540 | ~1.1 MiB |
+| circuit | 5 | 1718 | 3706 | ~114 KiB |
+| circuit | 11 | 11732 | 50476 | ~1.4 MiB |
+| circuit | 21 | 50722 | 372481 | ~9.5 MiB |
+
+**Implications (validated by the table, not guessed):**
+
+1. Circuit-level graphs are **much larger** than phenomenological at the same d (boundaries explode: e.g. d=11 circuit has 10412 boundary vertices vs 812 phenom). Helios “d≤17 circuit on VCU129” is consistent with needing more PEs / multiplexing than phenom.
+2. On-chip **full PE-per-vertex** for d=21 circuit (~50k PEs) is a **resource**, not a latency, problem — matches Helios use of Helios-n context switching.
+3. Static edge tables (`capacity`, adjacency, `obs_mask`) fit comfortably in BRAM/URAM at these sizes; **dynamic** `growth`/`parent` dominate runtime ports.
+
+---
+
+## 5. Recommended Aether PE / memory map (implementation checklist)
+
+Do not start RTL until each checkbox has a co-sim plan against `cargo test` + Stim shots.
+
+| ID | Item | Decision |
+| --- | --- | --- |
+| H1 | PE granularity | 1 PE per `NodeId` after DEM compile (detectors + virtual boundaries). **M34:** PE-pair RTL. **M37:** edge-list mesh. **M42–M47:** Stim PE-mesh through phenom + circuit d=3 r=3 grow→peel. |
+| H2 | Edge owner for `growth` | Helios rule: store on **lower** endpoint id; atomic +1 from odd/active sides. **M34:** `owns_edge = MY_ID < neigh_id`. **M37/M42:** growth on edge index via `eu`/`ev` + `cap_bus`. |
+| H3 | Growth skip | If both endpoints report same `cid`/`find` root → no growth. |
+| H4 | Active predicate | `odd && !cluster_boundary` (Aether). |
+| H5 | Union policy | Prefer **union-by-size** as in software; if adopting Helios min-cid, add equivalence tests on peeling outputs. |
+| H6 | Syndrome bank | Read-only after ingest; peel FSM reads `syndrome`, writes correction bits / `obs_mask` XOR. **M38–M47:** PE-mesh solids → peel through Stim circuit d=3 r=3. |
+| H7 | Peel root | If any boundary in component → that vertex is root; enqueue other degree-1 nodes (M10). **M38:** two_boundary_star on PE-mesh. **M41:** Helios-2 boundary peel after multiplex. |
+| H8 | Controller | Tree OR-reduce of `busy` and `any_active`; single-clock domain. **M30:** comb OR-tree. **M31–M32:** wired into Blueprint grow/peel. **M33:** pipelined OR-tree `pipe_depth≡clog2(N)`. |
+| H9 | Context switch | LUTRAM; **M39–M41** micro; **M67–M69** plan; **M70:** phys map 7 colors / 16 parts (`helios_n_coloring_m70.csv`); Helios schedule N_CTX≥16. |
+| H10 | Host I/O | BRAM/URAM ring + obs egress; PCIe/UDP later (Phase 3). **M48–M53:** notes, phenom/circuit ring, **obs stub** (`aether_uf_obs_egress`). |
+| H11 | Fallback | Unsolved / timeout → CPU MWPM; gate on measured rates. **M49:** notes. **M51/M54:** abort grids 0/400 on measured cells (`uf_decode_error_m51.csv`, `uf_decode_error_m54.csv`). |
+| H12 | Co-sim | **M16–M28:** file Stim/Blueprint + DPI Blueprint + **DPI Stim** (circuit d=3 r=3 V=392 E=556). **M31–M32:** Blueprint grow/peel with H8 OR-tree ctrl (monolithic Stim path unchanged). |
+
+---
+
+## 6. Corrections to older Aether docs
+
+| Older claim | Correction |
+| --- | --- |
+| “Dual-port BRAM for PE clustering” (`Overview`) | PE state / context = **LUTRAM/regs** (Helios). BRAM for static DEM tables + host buffers. |
+| “Each PE talks to 4 neighbors only” (`Analysis`) | True for a **code-capacity 2D lattice**; **false** for Stim circuit-level decoding graphs (high degree, many virtual boundaries). Degree comes from DEM, not from qubit grid. |
+| “UF always O(V) on FPGA” | Helios worst-case cycle bound \(O(d^4)\); average can be ≪ 1 µs/round (published). Quote published numbers with noise model. |
+| “10× Relay-BP vs BP+OSD on FPGA LUTs” (`Overview`) | Problem-dependent; see M13/M14. Relay-BP is a **separate** PE/message datapath. |
+
+---
+
+## 7. Out of scope until bring-up gates pass
+
+See **`Docs/Fpga_Bringup_Prep`** + **`Docs/S0_Synth_M56`**. G1–G3 smoke: VCU129 / `xcvu13p-fhgb2104-2-e`, `fpga/s0/`, Yosys CSV.
+
+Until Vivado S0 util/timing (or Progress override) before full-chip:
+
+- Full-chip Verilog/SystemVerilog / HLS of every PE.
+- Helios multi-cycle cid/`st_odd` flood micro-scheduling (M16 counts software-equivalent controller rounds only).
+- Relay-BP FPGA (use Müller / IBM FPGA papers when that track starts).
+- Control bindings (Qblox / ZI / gRPC) — Overview Phase 3.
+- Claiming board latency or FPGA resource numbers.
+
+---
+
+## 8. Validation performed
+
+### M15
+1. Re-read Helios arXiv:2406.08491 and Das arXiv:2001.06598.
+2. Mapped every `DecoderGraph` field to a bank (§2).
+3. Ran `scripts/uf_graph_sizes.py` → `results/uf_graph_sizes.csv`.
+
+### M17 (Helios PE + RTL)
+1. Inspected Helios `processing_unit.sv` active/grow predicates (not copied).
+2. `helios_pe` solid-set + correction identity vs software / `cycle_model`.
+3. Icarus simulation of `rtl/tb_aether_uf_two_node.sv` → PASS cycles=5.
+
+### M18 (parameterized grow+merge)
+1. `cargo run --bin gen_rtl_vectors` emits `rtl/gen/blueprint_cases.sv` from `helios_pe`.
+2. `scripts/rtl_blueprint_sim.sh` → 7/7 PASS (cycles + solid_mask).
+3. Solidify ordering must match software (grow then merge on stored growth).
+
+### M19 (peel FSM + end-to-end decode)
+1. Goldens include `C*_CORR` / `C*_PEEL_OPS` from `decode_cosim`.
+2. `scripts/rtl_decode_sim.sh` → 8/8 PASS (grow solid/cycles + peel corr/ops).
+3. M10 rule: root at one boundary; peel other boundary leaves (star case corr=2).
+
+### M20 (Stim-compiled harness)
+1. `scripts/stim_rtl_harness.py --kind phenom|circuit` → software cosim all shots + Icarus subset.
+2. Phenom d=3 r=1: V=16 E=18; circuit d=3 r=1: V=28 E=35 (both E≤64).
+3. Port widen: 16-bit IDX; per-edge solid/corr; peel MAX_DEG=64 (M24).
+
+### M22 (beyond E=64)
+1. Research note `Docs/Rtl_Scale_Research` (adopt per-edge SoA; reject packed-mask widen as primary).
+2. Phenom d=3 r=3: V=72 E=94 — Icarus 4/4 + 48-shot software cosim.
+3. Blueprint still packs bits only in TB for small-E integer goldens.
