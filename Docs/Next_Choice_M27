@@ -1,0 +1,26 @@
+# Next-step choice (post-M26)
+
+**Date:** 2026-08-22  
+**Question:** Among Progress options, what is the highest-value milestone?
+
+## Candidates
+
+| Option | Evidence already? | Marginal value | Cost / risk |
+| --- | --- | --- | --- |
+| Stim-scale DPI | File Stim RTL already through circuit d=3 r=3 (M24); Blueprint DPI (M26) | Hygiene (live goldens for Stim) | Flat buffers + large Verilator link; **no new scientific claim** |
+| Circuit RTL d=5 | d=3 r=3 done | Scale only | V≈1718 E≈3706 ≫ MAX=600; big RTL cliff; Progress says “only if needed” |
+| More shots @ p≈0.005 Relay vs OSD | M25: 21/100 vs 31/100, Wilson **overlap** | Could get **disjoint** Wilson (or prove still overlaps) — only soft ranking claim left | OSD ~6.5 s/shot @ p=0.005 → ~400 shots ~45 min OSD; known Müller/ldpc setup |
+| Fitted UF p_th / PyO3 | M12 grid exists | Fit not required for H12 | Premature |
+| Full PE-grid FPGA | Co-sim exists | Vision | Checklist: still need PE controller RTL; too large for one step |
+
+## Decision (M27)
+
+**Run matched 400-shot bake-off at p=0.005** (seed=1, same hyperparams as M14/M21/M25), write `results/relay_bb_bakeoff_m27.csv` (do not overwrite M25).
+
+**Why:** Wilson planning prior using M25 rates (~0.21 vs ~0.31) suggests **n≳300** can yield disjoint 95% intervals *if* rates hold. That is the cheapest path to either (a) a defensible Relay≪OSD claim at one operating point, or (b) a stronger “still overlaps” negative result. Stim DPI and d=5 RTL do not unlock ranking or FPGA checklist items.
+
+**Rules:** Cite counts + Wilson only; claim Relay ≪ OSD **only if** intervals are disjoint.
+
+## Result
+
+Completed: `results/relay_bb_bakeoff_m27.csv` — Relay 72/400 [0.146, 0.221] vs OSD 115/400 [0.245, 0.334] — **disjoint**. Wall ~3.6 h.

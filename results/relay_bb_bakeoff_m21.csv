@@ -1,0 +1,5 @@
+circuit,p,shots,seed,decoder,errors,ler,ler_lo,ler_hi,detectors,observables,dem_errors
+bicycle_bivariate_144_12_12_memory_Z,0.003,50,1,aether_relay,0,0.0,0.0,0.07134759913335871,1728,12,67752
+bicycle_bivariate_144_12_12_memory_Z,0.003,50,1,bposd_cs10,0,0.0,0.0,0.07134759913335871,1728,12,67752
+bicycle_bivariate_144_12_12_memory_Z,0.006,50,1,aether_relay,26,0.52,0.38511744890044614,0.6520286471342196,1728,12,67752
+bicycle_bivariate_144_12_12_memory_Z,0.006,50,1,bposd_cs10,30,0.6,0.4618143774758936,0.7239161026974346,1728,12,67752
