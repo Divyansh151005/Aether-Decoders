@@ -1,0 +1,28 @@
+# M29 choice: replicate M27
+
+**Refs:** Progress Next; mistakes “Over-generalizing M27”; Müller arXiv:2506.01779 comparison setup.
+
+## Alternatives
+
+| Option | Pros | Cons | Verdict |
+| --- | --- | --- | --- |
+| **p=0.005, seed=2, 400 shots** | Independent sampler seed; same operating point as M27 | ~3–4 h wall (OSD) | **Adopt** |
+| p=0.004 ×400 | New p on curve | M25 rates close (4 vs 6 /100); may still overlap | Defer |
+| Circuit RTL d=5 | Scale | V≈1718 E≈3706; Progress “only if needed” | Reject for now |
+
+## Protocol
+
+Same as M27: Müller gross Relay defaults + `ldpc` BP+OSD-CS10 max_iter=10000; matched shots; write `results/relay_bb_bakeoff_m29.csv` (do not overwrite M27).
+
+**ETA:** ~3–4 hours wall (Relay ~0.5 h + OSD ~2.5–3.5 h). Heartbeat: `/tmp/relay_m29.log` shows `bposd shot N/400` every 10 shots.
+
+## Result
+
+Completed: `results/relay_bb_bakeoff_m29.csv`
+
+| | Relay | BP+OSD | Wilson |
+| --- | --- | --- | --- |
+| M27 seed=1 | 72/400 [0.146, 0.221] | 115/400 [0.245, 0.334] | **disjoint** |
+| M29 seed=2 | 92/400 [0.191, 0.274] | 115/400 [0.245, 0.334] | **overlap** |
+
+Disjointness at n=400 is **not** seed-stable. Do not claim Relay ≪ OSD as established from M27 alone.
