@@ -1,0 +1,43 @@
+# RTL scale research (M22–M24)
+
+**Last updated:** 2026-08-22 (M24)  
+**Refs:** Helios arXiv:2406.08491 / yale-paragon Helios RTL; Aether Hardware_Mapping; Progress.
+
+## Measured Stim UF graphs
+
+| Circuit | V | E | max deg | Notes |
+| --- | ---: | ---: | ---: | --- |
+| phenom d=3 r=1 | 16 | 18 | 4 | M20 |
+| phenom d=3 r=3 | 72 | 94 | 9 | M22 (past E=64); PE-mesh M44–M45 |
+| phenom d=5 r=5 | 272 | 518 | 10 | M23 (past 8-bit index) |
+| circuit d=3 r=1 | 28 | 35 | 8 | M20 |
+| circuit d=3 r=3 | 392 | 556 | 63 | **M24** SoA; **M46** PE-mesh grow; **M47** PE-mesh peel |
+
+## Alternatives
+
+| Option | Verdict |
+| --- | --- |
+| Packed solid_mask widen (128/256/512) | Reject as primary — cliff just moves |
+| Per-edge `solid_bits`/`corr_bits` | **Adopted (M22)** — Helios-aligned SoA |
+| Verilator (+ later DPI) | **Verilator 5.050** + **DPI Blueprint (M26)**; Stim-scale DPI deferred |
+| Software-only for large E | Insufficient for H12 RTL |
+
+## Tools
+
+| Tool | Status | Use |
+| --- | --- | --- |
+| Icarus Verilog 13 | Installed | Default / Blueprint |
+| Verilator 5.050 | Installed via Homebrew | Large Stim TB (`--sim verilator`) — preferred for circuit d=3 r=3 |
+| Stim + `dem_to_payload` | In-tree | DEM + shots |
+| `gen_stim_rtl_vectors` | In-tree | Cosim gate + goldens |
+
+## M23 implementation
+
+1. `IDX_W=16` on DUT (V=272 > 255).
+2. Stim TB `MAX_N/E=600`.
+3. Validate phenom d=5 r=5 with Icarus **and** Verilator; Blueprint regression.
+
+## M24 implementation
+
+1. Peel `MAX_DEG` default/TB **64**; `sdeg`/`fdeg`/`remaining` widened to 8-bit (circuit max_deg=63).
+2. Validate circuit d=3 r=3 with Verilator; Blueprint still Icarus.
