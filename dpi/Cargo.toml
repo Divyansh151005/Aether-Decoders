@@ -1,0 +1,15 @@
+[package]
+name = "aether_uf_dpi"
+version = "0.1.0"
+edition = "2021"
+description = "DPI-C exports: live Rust Blueprint goldens for Verilator UF RTL co-sim (M26)"
+license = "MIT"
+publish = false
+
+[lib]
+name = "aether_uf_dpi"
+crate-type = ["cdylib"]
+path = "src/lib.rs"
+
+[dependencies]
+aether_decoders = { path = ".." }

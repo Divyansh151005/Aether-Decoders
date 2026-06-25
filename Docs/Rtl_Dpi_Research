@@ -1,0 +1,40 @@
+# RTL↔software co-sim via DPI (M26 research)
+
+**Last updated:** 2026-08-22  
+**Refs:** Verilator 5.050 connecting guide (DPI-C); Helios RTL (yale-paragon) uses **file/Vivado** TBs, not DPI; IEEE 1800 DPI-C; Aether M16–M24 file goldens.
+
+## Goal
+
+Drive grow/peel RTL from **live Rust goldens** (`decode_cosim` / `helios_pe`) instead of only `rtl/gen/*.sv` includes — Progress “DPI Rust↔RTL co-sim”.
+
+## Alternatives
+
+| Option | Pros | Cons | Verdict |
+| --- | --- | --- | --- |
+| Keep file `include` goldens (M20–M24) | Works Icarus+Verilator; proven | Stale if software drifts without regen | Keep as regression |
+| **DPI-C import from SV → Rust `cdylib`** | IEEE; Verilator-supported; goldens computed in Rust at sim start | Icarus DPI weak; large Stim graphs need flat buffers | **Adopt for Blueprint (M26)** |
+| Marlin / svdpi-rs frameworks | Rust ergonomics | Extra young deps; not needed for scalar Blueprint API | Reject for now |
+| cocotb / Python driver | Fast to write | Not Rust↔RTL; duplicates Stim harness | Reject for this Next |
+| Verilator C++ main + FFI (no SV `import`) | Full control | Not DPI as named in Progress | Defer |
+| More OSD shots at p≈0.005 | Could tighten Wilson | Separate Next; M25 already denser curve | Not this milestone |
+
+## Adopted M26 shape
+
+1. Crate `aether_uf_dpi` (`cdylib`): `aether_dpi_load(case)` fills buffers from shared Blueprint graphs + `helios_pe` / `decode_cosim`.
+2. `rtl/tb_aether_uf_dpi.sv` imports DPI getters; runs same DUT as decode TB.
+3. Verilator `--binary` links `libaether_uf_dpi` (macOS `.dylib` / Linux `.so`).
+4. File-based Icarus Blueprint TB remains the non-DPI regression.
+
+## Out of scope (later)
+
+- ~~Stim-scale DPI (V≈400+)~~ → **done M28** (circuit d=3 r=3 via flat per-edge getters).
+- Vivado DPI for FPGA bring-up.
+- Helios PE-grid DPI.
+
+## M28 Stim DPI
+
+1. Shared `load_stim_rtl_bundle` in `src/stim_rtl.rs`.
+2. DPI: `aether_dpi_stim_prepare` / `select` / per-edge solid/corr bits.
+3. TB `rtl/tb_aether_uf_stim_dpi.sv`; harness `scripts/stim_dpi_cosim.sh`.
+4. Evidence: circuit d=3 r=3 **V=392 E=556** Verilator **2/2 PASS**.
+
