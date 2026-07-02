@@ -1,0 +1,60 @@
+# PE-grid prep (M30) — controller OR-tree before full PE array
+
+**Status:** Research + first H8 RTL slice. No full PE-grid FPGA.  
+**Locked refs:** Helios arXiv:2406.08491 §IV-B (controller tree); `Docs/Hardware_Mapping` H1–H12; Aether active = odd ∧ ¬`cluster_boundary`.
+
+---
+
+## 1. Why this step (vs third-seed OSD / circuit d=5)
+
+| Option | Cost | Unlocks |
+| --- | --- | --- |
+| Third seed @ p=0.005 ×400 | ~3–4 h (OSD) | Ranking only if Wilson disjoint again; M29 already showed seed=2 **overlap** |
+| Circuit RTL d=5 | V≈1718 E≈3706 ≫ MAX=600 | Needs scale research again; not H8 |
+| **H8 OR-tree controller RTL** | minutes | First PE-grid checklist item with Verilator evidence |
+
+**Chosen:** H8. Rejected another multi-hour OSD chase unless Progress explicitly requires a stable Relay≪OSD claim.
+
+---
+
+## 2. Helios controller (cite, do not invent)
+
+From Helios §IV-B:
+
+- Controller is a **tree of control nodes** (not a single global OR bus at scale).
+- Each PE reports status bits including **busy** and cluster-odd (`codd`); nodes aggregate children → parent.
+- Root decides stage advance (Helios Alg. 6). Height / branching factor are implementation choices; must not slow the PE grid.
+
+Aether H8 (`Docs/Hardware_Mapping`): tree OR-reduce of **`busy`** and **`any_active`**, single clock domain.  
+**Aether delta:** `any_active` ⇔ OR of (odd ∧ ¬`cluster_boundary`), not raw Helios `codd` alone — otherwise neutralized boundary clusters never quiesce.
+
+---
+
+## 3. Smallest validated RTL slice
+
+| Artifact | Role |
+| --- | --- |
+| `rtl/aether_uf_or_tree.sv` | Parameterized binary OR-tree for `busy` + `active` vectors → `any_busy`, `any_active` |
+| `rtl/tb_aether_uf_or_tree.sv` | Exhaustive small-N + directed vectors vs combinatorial goldens |
+| `scripts/pe_grid_or_tree_sim.sh` | Verilator (+ Icarus) with upfront ETA + 5 s heartbeats |
+
+**Out of scope this milestone:** PE datapath rewrite, cid flood micro-schedule, Helios-n context switch, FPGA synth.
+
+---
+
+## 4. Alternatives considered
+
+| Alternative | Why rejected now |
+| --- | --- |
+| Wire `|` only (no tree structure) | Matches function but not Helios H8 topology; harder to pipeline later |
+| Full PE slice (grow+merge+controller) | Too large; grow/merge already co-simmed as monolithic SoA |
+| Copy Helios Verilog | License / Aether boundary semantics differ; cite behavior only |
+
+---
+
+## 5. Next PE-grid steps (after M70)
+
+**M30–M70 done:** schedule plan + **feasible PE coloring** (M68 n=6 not Helios-legal).
+
+1. Lattice grow co-sim vs M44 using M70 map, **or** Vivado / G4.
+2. Do not schedule Helios-n on M68 parts without recolor (M70).
