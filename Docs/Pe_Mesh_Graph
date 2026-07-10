@@ -1,0 +1,61 @@
+# PE mesh beyond lines (M37) — square / branch before Helios-n
+
+**Status:** Research + first non-line PE grow RTL. No Helios-n (H9) yet.  
+**Locked refs:** Helios arXiv:2406.08491 (Helios-n = time-multiplex sub-graphs onto a lattice; LUTRAM context, 1 cycle); `Docs/Hardware_Mapping` H1–H5, H9; Blueprint `square` / `docs_peel` via `helios_pe`; M36 line mesh (deg-2 path only).
+
+---
+
+## 1. Choice (Progress Next)
+
+| Option | Why now / not |
+| --- | --- |
+| **Square + branch Blueprint on PE mesh** | M36 explicitly blocked on wrap / deg>2 adjacency; unlocks non-path graphs with existing goldens |
+| Helios-n LUTRAM (H9) | Needs a lattice that already runs the target topology; Helios-n multiplexes **homogeneous** sub-graphs onto physical PEs (arXiv:2406.08491). Premature before cycle/branch PE grow |
+| Third seed OSD | Ranking not required (M29 Wilson overlap) |
+
+**Chosen:** edge-list PE grow for Blueprint **square** (4-cycle) + **docs_peel** (branch / star at v1).  
+**Rejected:** H9 this milestone; rewriting line mesh only (cannot express edge 3–0 or hub degree 3).
+
+---
+
+## 2. Helios-n facts (cite, do not invent)
+
+From Helios § on resource trade-off / Helios-n:
+
+- Partition decoding graph into sub-graphs; time-multiplex onto a fixed **lattice**.
+- Physical PE stores/loads PE state from **local LUTRAM** (not BRAM — shallower depth); context switch ≈ **1 cycle**.
+- Adjacent virtual PEs across partition cuts map to the **same** physical PE so boundary S1 stays local (no extra lattice edges).
+
+Aether H9 remains: LUTRAM context per physical PE. **Not started** until PE grow covers non-line Blueprint (this note) and a co-sim plan exists.
+
+---
+
+## 3. Smallest validated RTL slice
+
+| Artifact | Role |
+| --- | --- |
+| `rtl/aether_uf_pe_graph_grow.sv` | Parameterized N/M; packed `eu`/`ev`; cluster-active δ; ordered SoA merges; optional `is_bnd` |
+| `rtl/tb_aether_uf_pe_square_grow.sv` | ≡ helios_pe square: cycles=5, solid=`4'b1000` |
+| `rtl/tb_aether_uf_pe_docs_peel_grow.sv` | ≡ helios_pe docs_peel: cycles=10, solid=`3'b011` |
+| `scripts/pe_graph_grow_sim.sh` | ETA + heartbeats; Icarus + Verilator; line4/pair regressions |
+
+**Out of scope M37:** H9 context switch; peel on PE ports; FPGA synth; wiring pipelined OR-tree (+depth).
+
+**M38:** peel after PE-mesh grow for all Blueprint — see `Docs/Pe_Mesh_Decode`.
+
+---
+
+## 4. Alternatives considered
+
+| Alternative | Why rejected now |
+| --- | --- |
+| Dedicated square-only RTL | Less reuse; docs_peel (branch) is the same Progress bullet |
+| True MAX_DEG neighbor-port PE IP | Still SoA-ordered merge for multi-edge solidify (M35 lock); edge-list δ already matches Helios S3-on-edge + endpoint active |
+| H9 first | Lattice topology incomplete; no d>FPGA-fit need yet |
+| Keep only line_grow | Cannot represent cycles or hubs |
+
+---
+
+## 5. Tooling
+
+Icarus + Verilator (existing); `cargo test`; goldens from `blueprint_golden` / `rtl/gen/blueprint_cases.sv`. No new deps.
