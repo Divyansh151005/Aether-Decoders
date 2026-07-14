@@ -1,0 +1,63 @@
+# PE-mesh grow→peel (M38) — validate edge-list solids + M10 peel
+
+**Status:** Research + Blueprint end-to-end PE-mesh decode. No Helios-n (H9) RTL.  
+**Locked refs:** Helios arXiv:2406.08491 (Helios-n LUTRAM, 1-cycle context); Das arXiv:2001.06598 (peel/Corr); `Docs/Hardware_Mapping` H6–H9, H12; M10 boundary-root peel; M32 grow_ctrl→peel; M37 `pe_graph_grow`; `blueprint_golden` / `decode_cosim`.
+
+---
+
+## 1. Choice (Progress Next)
+
+| Option | Cost | Unlocks / risk |
+| --- | --- | --- |
+| **PE-mesh grow→peel (all Blueprint)** | minutes–tens of min | Closes M37 gaps: `is_bnd` untested; square_opp solid=15; corr ≡ decode_cosim on PE solids |
+| square_opp / boundary grow-only | smaller | Same grow goldens but no corr check |
+| Helios-n LUTRAM (H9) research+RTL | small RTL, weak UF check | Helios uses context switch only when d exceeds FPGA fit (VCU129: d>21 phenom / d>17 circuit). No target part yet; PE-mesh peel correctness is the open gap |
+| Third seed OSD | hours | Ranking not required (M29 overlap) |
+
+**Chosen:** wire `aether_uf_pe_graph_grow` → existing `aether_uf_peel` for **all 8** Blueprint cases (includes square_opp, boundary, two_boundary_star).  
+**Rejected:** H9 this milestone (resource multiplexing before end-to-end PE decode); grow-only cases (peel is the Progress alternative that adds evidence).
+
+---
+
+## 2. Helios-n / H9 (cite; defer RTL)
+
+From Helios arXiv:2406.08491 § resource efficiency:
+
+- Helios-n = *n* virtual sub-graphs time-multiplexed onto one physical lattice.
+- PE state in **LUTRAM** (not BRAM); context switch ≈ **1 cycle**.
+- Cross-partition adjacent virtual PEs map to the **same** physical PE (avoid extra lattice edges). Heer et al. multi-context PEs are the prior art Helios adapts.
+- Used when LUTs bind (e.g. d=27 Helios-4 … Helios-27; d=51 Helios-51).
+
+Aether H9 co-sim plan (when Next returns to H9): dual-bank PE context (ctx0/ctx1) store/load of `{root,size,parity,cbound,is_root}` + owned edge growth; TB proves 1-cycle switch restores state bit-identical; **no** claim of Stim-scale Helios-n until FPGA synth budget exists.
+
+**M39 done:** plan executed — see `Docs/Helios_n_H9` + `rtl/aether_uf_pe_lutram_ctx.sv`.
+
+---
+
+## 3. Peel facts (do not invent)
+
+- Frozen `syndrome[]` only (not DSU parity) — Progress mistakes table.
+- M10: if any boundary in component → that vertex is peel root; peel other leaves including extra virtual boundaries.
+- Existing RTL `aether_uf_peel` already co-simmed vs decode_cosim (M19–M32). M38 only changes the **grow front-end** (PE edge-list vs SoA ctrl).
+
+---
+
+## 4. Smallest validated slice
+
+| Artifact | Role |
+| --- | --- |
+| `aether_uf_pe_graph_grow` (+ `num_nodes`/`num_edges`) | Runtime-sized edge-list grow; keeps square/docs_peel TBs |
+| `tb_aether_uf_pe_mesh_decode.sv` | 8/8 Blueprint grow→peel ≡ cycles/solid/corr/peel_ops |
+| `scripts/pe_mesh_decode_sim.sh` | ETA + HB; Icarus+Verilator; square/docs_peel + M32 ctrl decode regression |
+
+**Out of scope:** H9 LUTRAM RTL; FPGA synth; Stim-scale PE mesh; pipelined OR-tree in PE path.
+
+---
+
+## 5. Alternatives / tooling
+
+| Rejected | Why |
+| --- | --- |
+| New peel FSM for PE ports | Duplicate Das/M19 peel; solids are enough input |
+| Copy Helios Verilog | License + Aether boundary/H4/H5 deltas |
+| New deps | Icarus, Verilator, `gen_rtl_vectors`, `cargo test` suffice |
