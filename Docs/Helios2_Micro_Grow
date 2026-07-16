@@ -1,0 +1,48 @@
+# Helios-2 micro grow (M40) — H9 wired into grow
+
+**Status:** Research + first multiplexed grow using LUTRAM context. No Stim-scale PE-mesh; no FPGA synth.  
+**Locked refs:** Helios arXiv:2406.08491 (Helios-n stage multiplex); `Docs/Helios_n_H9` / M39 `aether_uf_pe_lutram_ctx`; Blueprint `two_node` + `boundary` goldens; M37/M38 edge-list grow semantics (cluster-active δ, ordered merge).
+
+---
+
+## 1. Choice (Progress Next)
+
+| Option | Why now / not |
+| --- | --- |
+| **Wire H9 into Helios-2 micro grow** | Progress first; M39 only proved store/load — need grow that survives switch |
+| Stim-scale PE-mesh grow | Monolithic Stim path already M24/M28; large N/M without multiplexing lesson |
+| Third seed OSD | Ranking not required |
+
+**Chosen:** Helios-2 micro grow on fixed 2-node lattice. **Rejected:** Stim PE-mesh this milestone.
+
+---
+
+## 2. Helios multiplex (cite)
+
+Helios time-multiplexes sub-graphs onto a physical lattice during decoding stages; each PE switches context via LUTRAM (~1 cycle). Aether micro: **one** physical 2-vertex / 1-edge grow datapath; **two** virtual jobs (ctx0 = two_node, ctx1 = boundary) share that datapath via H9 banks.
+
+---
+
+## 3. Smallest validated slice
+
+| Artifact | Role |
+| --- | --- |
+| `rtl/aether_uf_helios2_micro_grow.sv` | 2-node grow + dual graph-state LUTRAM banks; switch + grow |
+| `rtl/tb_aether_uf_helios2_micro_grow.sv` | ctx0 two_node → switch → ctx1 boundary → switch back; ctx0 solid preserved |
+| `scripts/helios2_micro_grow_sim.sh` | ETA + HB; Icarus + Verilator; H9 + mesh smoke |
+
+Goldens: ctx0 cycles=5 solid=1; ctx1 cycles=10 solid=1; after return to ctx0 solid=1 growth=10 without re-grow.
+
+**Out of scope:** Lattice partition mapper; N_CTX>2; Stim-scale; peel under Helios-n.
+
+**M41:** peel after Helios-2 multiplex — see `Docs/Helios2_Micro_Decode`.
+
+---
+
+## 4. Alternatives / tooling
+
+| Rejected | Why |
+| --- | --- |
+| Two parallel pe_graph_grow (no share) | Does not exercise H9 |
+| Full pe_graph_grow × N_CTX rewrite | Overkill; micro lattice first |
+| New deps | Icarus, Verilator, cargo suffice |

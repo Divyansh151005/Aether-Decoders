@@ -1,0 +1,44 @@
+# Helios-2 micro decode (M41) — peel after multiplexed grow
+
+**Status:** Research + Helios-2 grow→peel. No Stim-scale PE-mesh; no H10 RTL.  
+**Locked refs:** Helios arXiv:2406.08491; M10 boundary-root peel; M38 PE-mesh decode; M40 `helios2_micro_grow`; Blueprint `two_node` / `boundary` corr goldens; Das Corr engine.
+
+---
+
+## 1. Choice (Progress Next)
+
+| Option | Why now / not |
+| --- | --- |
+| **Helios-2 peel after multiplex** | M40 left peel out of scope; mirrors M37→M38 (grow then corr); closes Helios-2 decode path |
+| Stim-scale PE-mesh grow | Monolithic Stim already M24/M28; scale without finishing Helios-2 decode |
+| H10 host I/O notes | Docs-only; no bit-identical evidence; Phase 3 PCIe still later |
+| Third seed OSD | Ranking not required |
+
+**Chosen:** Helios-2 grow→peel. **Rejected:** Stim PE-mesh / H10 this milestone.
+
+---
+
+## 2. Peel facts (do not invent)
+
+- Frozen `syndrome[]` (not DSU parity).
+- M10: boundary in component → that vertex is peel root.
+- Reuse `aether_uf_peel` (M19–M38); only front-end solids come from Helios-2 live lattice after each ctx grow.
+
+---
+
+## 3. Smallest validated slice
+
+| Artifact | Role |
+| --- | --- |
+| `tb_aether_uf_helios2_micro_decode.sv` | ctx0 two_node grow→peel; switch; ctx1 boundary grow→peel; restore ctx0 solid |
+| `scripts/helios2_micro_decode_sim.sh` | ETA + HB; Icarus + Verilator; Helios-2 grow + H9 regressions |
+
+Goldens: two_node cycles=5 solid=1 corr=1 peel_ops=1; boundary cycles=10 solid=1 corr=1 peel_ops=1.
+
+**Out of scope:** Stim-scale PE-mesh; H10 BRAM ring RTL; FPGA synth; N_CTX>2.
+
+---
+
+## 4. Tooling
+
+Icarus, Verilator, `aether_uf_peel`, cargo. No new deps.

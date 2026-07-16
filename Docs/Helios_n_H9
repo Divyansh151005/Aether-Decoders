@@ -1,0 +1,61 @@
+# Helios-n LUTRAM context (M39 / H9)
+
+**Status:** Research + first H9 RTL slice (1-cycle dual-context). No FPGA synth; no Stim-scale Helios-n.  
+**Locked refs:** Helios arXiv:2406.08491 § resource efficiency / Helios-n; Heer et al. multi-context PEs (cited by Helios); `Docs/Hardware_Mapping` H9; `Docs/Pe_Mesh_Decode` §2 co-sim plan; Aether PE state `{root,size,parity,cbound,is_root}` + owned `{growth,solid}`.
+
+---
+
+## 1. Choice (Progress Next)
+
+| Option | Why now / not |
+| --- | --- |
+| **H9 LUTRAM dual-context RTL** | Progress lists first; Pe_Mesh_Decode §2 plan ready after M38 PE-mesh decode |
+| Stim-scale PE-mesh grow | Monolithic Stim RTL already through circuit d=3 r=3 (M24/M28); PE-mesh at V≈400 is scale engineering, not H9 |
+| Third seed OSD | Ranking not required (M29 Wilson overlap) |
+
+**Chosen:** H9. **Rejected:** Stim-scale PE-mesh this milestone; copying Helios Verilog.
+
+---
+
+## 2. Helios-n facts (cite, do not invent)
+
+From Helios arXiv:2406.08491:
+
+- Without multiplexing: VCU129 fits ≈ d≤21 phenom / d≤17 circuit (LUT-bound).
+- Helios-n: partition decoding graph into *n* sub-graphs; time-multiplex onto a physical **lattice**.
+- Context switch at PE: store/load PE state in **local LUTRAM** (not BRAM — shallower depth) ≈ **1 clock cycle**.
+- Cross-cut adjacent virtual PEs map to the **same** physical PE so boundary neighbor state stays in that PE’s local memory (avoids Heer-style extra lattice wires).
+- Examples: d=27 Helios-4…27; d=51 Helios-51 (~544 ns/round reported).
+
+Aether delta: state fields follow Aether H1–H5 (union-by-size, active = odd ∧ ¬boundary), not Helios min-cid / raw `codd`.
+
+---
+
+## 3. Smallest validated RTL slice
+
+| Artifact | Role |
+| --- | --- |
+| `rtl/aether_uf_pe_lutram_ctx.sv` | Physical PE live regs + `(* ram_style="distributed" *)` context banks (LUTRAM intent); 1-cycle switch |
+| `rtl/tb_aether_uf_pe_lutram_ctx.sv` | Helios-2: write ctx0, switch→ctx1, write ctx1, switch→ctx0; bit-identical restore in **1** cycle |
+| `scripts/pe_lutram_ctx_sim.sh` | ETA + HB; Icarus + Verilator; cargo; PE-mesh decode smoke regression |
+
+**Out of scope:** Full Helios-n grow schedule; lattice partition mapper; FPGA place/route; Stim-scale multiplexed decode.
+
+**M40:** Helios-2 micro grow wires H9 — see `Docs/Helios2_Micro_Grow`.
+
+---
+
+## 4. Alternatives
+
+| Alternative | Why rejected now |
+| --- | --- |
+| BRAM for PE context | Contradicts Helios + Hardware_Mapping H9 |
+| Multi-cycle AXI/BRAM read | Helios switch is single-cycle local memory |
+| Wire H9 into pe_graph_grow already | Need proven store/load before multiplexed grow |
+| Open-source Helios RTL drop-in | License + Aether H4/H5 semantics |
+
+---
+
+## 5. Tooling
+
+Icarus + Verilator; Xilinx `ram_style="distributed"` attribute (ignored by sim, documents LUTRAM intent). No new deps.
