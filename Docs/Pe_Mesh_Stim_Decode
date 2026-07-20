@@ -1,0 +1,42 @@
+# Stim PE-mesh grow→peel (M43) — phenom d=3 r=1
+
+**Status:** Research + Stim PE-mesh decode (grow+peel). No d=3 r=3 PE-mesh; no H10 RTL.  
+**Locked refs:** `Docs/Pe_Mesh_Stim` (M42); M10 peel; M20/M38 Stim/Blueprint decode; `aether_uf_peel`; `gen_stim_rtl_vectors` corr/peel_ops goldens.
+
+---
+
+## 1. Choice (Progress Next)
+
+| Option | Why now / not |
+| --- | --- |
+| **Stim PE-mesh peel (phenom d=3 r=1)** | Progress first; M42 left peel out of scope; mirrors M37→M38 |
+| phenom d=3 r=3 PE-mesh grow | V=72 E=94 — after peel closes d=3 r=1 decode path |
+| H10 host I/O notes | Docs-only; weaker evidence |
+| Third seed OSD | Ranking not required |
+
+**Chosen:** grow→peel on same Stim vectors as M42. **Rejected:** scale-up / H10 this milestone.
+
+---
+
+## 2. Peel facts
+
+- Frozen `syndrome[]`; M10 boundary-root rule (already in `aether_uf_peel`).
+- Solids from `pe_graph_grow` (packed) → unpacked peel ports.
+- Goldens: corr bits + peel_ops ≡ `decode_cosim` (via `gen_stim_rtl_vectors`).
+
+---
+
+## 3. Smallest validated slice
+
+| Artifact | Role |
+| --- | --- |
+| `tb_aether_uf_pe_mesh_stim_decode.sv` | Stim PE-mesh grow→peel; 4 cases |
+| `scripts/pe_mesh_stim_decode_sim.sh` | ETA + HB; Icarus+Verilator; M42 grow smoke |
+
+**Out of scope:** d=3 r=3 / circuit PE-mesh; H10; FPGA synth.
+
+---
+
+## 4. Tooling
+
+Same as M42 + `aether_uf_peel`. No new deps.

@@ -1,0 +1,55 @@
+# Stim-scale PE-mesh grow (M42) — phenom d=3 r=1
+
+**Status:** Research + first Stim DEM on edge-list PE grow. No H10 RTL; no circuit d=3 r=3 PE-mesh yet.  
+**Locked refs:** `Docs/Rtl_Scale_Research` (phenom d=3 r=1 V=16 E=18); M20 Stim RTL harness; M37/M38 `pe_graph_grow`; `helios_pe` / `decode_cosim` goldens via `gen_stim_rtl_vectors`; Hardware_Mapping H1–H5, H10.
+
+---
+
+## 1. Choice (Progress Next)
+
+| Option | Why now / not |
+| --- | --- |
+| **Stim PE-mesh grow (phenom d=3 r=1)** | Progress first; unlocks PE-mesh beyond Blueprint; smallest Stim size (M20) |
+| H10 host I/O notes | Docs-only; Phase 3 PCIe later; weaker than bit-identical Stim evidence |
+| Circuit d=3 r=3 PE-mesh | V=392 E=556 — after phenom path works |
+| Third seed OSD | Ranking not required |
+
+**Chosen:** phenom d=3 r=1 PE-mesh grow vs helios_pe solids/cycles. **Rejected:** H10 this milestone.
+
+---
+
+## 2. Scale facts (cite)
+
+| Circuit | V | E | Prior RTL |
+| --- | ---: | ---: | --- |
+| phenom d=3 r=1 | 16 | 18 | M20 monolithic grow_merge |
+| phenom d=3 r=3 | 72 | 94 | M22 |
+| circuit d=3 r=3 | 392 | 556 | M24/M28 |
+
+M42 uses **pe_graph_grow** (edge-list PE mesh), not SoA `grow_merge`.
+
+---
+
+## 3. Gap vs Blueprint PE-mesh
+
+Blueprint cases used uniform CAP=10. Stim LLR capacities vary → add **`cap_bus`** to `pe_graph_grow` (per-edge), keep Blueprint TBs by tying caps to 10.
+
+---
+
+## 4. Smallest validated slice
+
+| Artifact | Role |
+| --- | --- |
+| `pe_graph_grow` + `cap_bus` | Per-edge capacity |
+| `tb_aether_uf_pe_mesh_stim.sv` | Stim graph + shots → PE-mesh grow goldens |
+| `scripts/pe_mesh_stim_sim.sh` | gen phenom d=3 r=1 vectors; Icarus+Verilator; Blueprint mesh smoke |
+
+**Out of scope:** PE-mesh peel on Stim; circuit-scale PE-mesh; H10; FPGA synth.
+
+**M43:** Stim PE-mesh peel — see `Docs/Pe_Mesh_Stim_Decode`.
+
+---
+
+## 5. Tooling
+
+Stim, `dem_to_payload`, `gen_stim_rtl_vectors`, Icarus, Verilator, cargo. No new deps.

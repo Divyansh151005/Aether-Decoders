@@ -1,0 +1,45 @@
+# Stim PE-mesh grow phenom d=3 r=3 (M44)
+
+**Status:** Research + PE-mesh grow at V=72 E=94. Peel closed in M45 (`Docs/Pe_Mesh_Stim_R3_Decode`).  
+**Locked refs:** `Docs/Rtl_Scale_Research` / M22 (phenom d=3 r=3); M42/M43 PE-mesh Stim path; `pe_graph_grow` + `cap_bus`; Hardware_Mapping H10.
+
+---
+
+## 1. Choice (Progress Next)
+
+| Option | Why now / not |
+| --- | --- |
+| **phenom d=3 r=3 PE-mesh grow** | Progress first; next Stim scale after d=3 r=1 decode (M43) |
+| H10 host I/O notes | Docs-only; Phase 3 PCIe later |
+| Circuit d=3 r=3 PE-mesh | V=392 — after r=3 phenom works |
+| Third seed OSD | Ranking not required |
+
+**Chosen:** PE-mesh grow vs helios_pe on phenom d=3 r=3. **Rejected:** H10 this milestone.
+
+---
+
+## 2. Scale / RTL deltas
+
+| Item | M42/M43 | M44 |
+| --- | --- | --- |
+| Graph | V=16 E=18 | V=72 E=94 |
+| TB MAX_N/E | 32 | **128** |
+| `cycles` width | 16-bit (risk overflow at scale) | **32-bit** (match `grow_merge`) |
+
+---
+
+## 3. Smallest validated slice
+
+| Artifact | Role |
+| --- | --- |
+| `pe_graph_grow` cycles[31:0] | Safe for large Stim LLR growth rounds |
+| Stim TB MAX=128 | Fits V=72 E=94 |
+| `scripts/pe_mesh_stim_r3_sim.sh` | gen r=3; grow 4/4; r=1 decode smoke optional |
+
+**Out of scope:** r=3 peel; circuit PE-mesh; H10; FPGA synth.
+
+---
+
+## 4. Tooling
+
+Stim, `gen_stim_rtl_vectors`, Icarus, Verilator. Prefer Verilator if Icarus is slow (M22 lesson). Heartbeats ≥10s.

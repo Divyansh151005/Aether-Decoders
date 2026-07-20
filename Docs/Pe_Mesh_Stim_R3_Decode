@@ -1,0 +1,45 @@
+# Stim PE-mesh grow→peel phenom d=3 r=3 (M45)
+
+**Status:** Research + PE-mesh decode at V=72 E=94. No H10 RTL; circuit PE-mesh deferred.  
+**Locked refs:** `Docs/Pe_Mesh_Stim_R3` (M44 grow); `Docs/Pe_Mesh_Stim_Decode` (M43 peel path); M10 peel; `Docs/Rtl_Scale_Research` (max_deg=9 for phenom d=3 r=3); `aether_uf_peel`.
+
+---
+
+## 1. Choice (Progress Next)
+
+| Option | Why now / not |
+| --- | --- |
+| **phenom d=3 r=3 PE-mesh peel** | Progress first; M44 left peel out of scope; mirrors M42→M43 |
+| H10 host I/O notes | Docs-only; weaker evidence |
+| Circuit d=3 r=3 PE-mesh | V=392 max_deg=63 — after phenom r=3 decode closes |
+| Third seed OSD | Ranking not required (M29 overlap) |
+
+**Chosen:** grow→peel on same Stim vectors as M44. **Rejected:** H10 this milestone.
+
+---
+
+## 2. Scale / peel facts
+
+| Item | Value |
+| --- | --- |
+| Graph | V=72 E=94 (M22/M44) |
+| max_deg | **9** (`Rtl_Scale_Research`) → TB `MAX_DEG=16` sufficient |
+| TB | Reuse `tb_aether_uf_pe_mesh_stim_decode` (MAX=128, cycles 32-bit) |
+| Goldens | cycles/solid ≡ helios_pe; corr/peel_ops ≡ decode_cosim |
+
+---
+
+## 3. Smallest validated slice
+
+| Artifact | Role |
+| --- | --- |
+| `tb_aether_uf_pe_mesh_stim_decode.sv` | Stim PE-mesh grow→peel (unchanged RTL) |
+| `scripts/pe_mesh_stim_r3_decode_sim.sh` | gen r=3; decode 4/4; grow + Blueprint smokes |
+
+**Out of scope:** circuit PE-mesh; H10; FPGA synth.
+
+---
+
+## 4. Tooling
+
+Stim, `gen_stim_rtl_vectors`, Icarus, Verilator. Prefer Verilator if Icarus is slow. Heartbeats ≥10–15s. ETA from M44 grow (~30s) + peel overhead → budget ~600s.
