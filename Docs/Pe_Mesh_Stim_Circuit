@@ -1,0 +1,48 @@
+# Stim PE-mesh grow circuit d=3 r=3 (M46)
+
+**Status:** Research + PE-mesh grow at V=392 E=556. Peel closed in M47 (`Docs/Pe_Mesh_Stim_Circuit_Decode`).  
+**Locked refs:** `Docs/Rtl_Scale_Research` / M24 (circuit d=3 r=3; IDX_W=16; MAX=600; Verilator); M42–M45 PE-mesh Stim path; `pe_graph_grow` + `cap_bus`; Hardware_Mapping H10 deferred.
+
+---
+
+## 1. Choice (Progress Next)
+
+| Option | Why now / not |
+| --- | --- |
+| **circuit d=3 r=3 PE-mesh grow** | Progress first; next Stim scale after phenom r=3 decode (M45); measured V=392 E=556 |
+| H10 host I/O notes | Docs-only; BRAM/URAM ring + Phase 3 PCIe — weaker than cosim |
+| Circuit peel on PE-mesh | Needs MAX_DEG≥63; after grow goldens |
+| Third seed OSD | Ranking not required (M29 overlap) |
+
+**Chosen:** PE-mesh grow vs helios_pe on circuit d=3 r=3. **Rejected:** H10 this milestone.
+
+---
+
+## 2. Scale / RTL deltas
+
+| Item | Phenom r=3 (M44/M45) | Circuit r=3 (M46) |
+| --- | --- | --- |
+| Graph | V=72 E=94 max_deg=9 | V=392 E=556 max_deg=63 |
+| TB MAX_N/E | 128 | **600** (M23/M24) |
+| IDX_W | 8 | **16** (V>255) |
+| Simulator | Icarus + Verilator | **Verilator primary** (M24 lesson); Blueprint Icarus |
+| RTL cases | 4 | **2** (M24 density) |
+
+No DUT RTL change expected — `pe_graph_grow` already parameterized N/M/IDX_W/cycles[31:0].
+
+---
+
+## 3. Smallest validated slice
+
+| Artifact | Role |
+| --- | --- |
+| `tb_aether_uf_pe_mesh_stim_scale.sv` | Circuit-scale PE-mesh grow; MAX=600 IDX_W=16 |
+| `scripts/pe_mesh_stim_circuit_sim.sh` | gen circuit d=3 r=3; Verilator 2/2; Blueprint smoke |
+
+**Out of scope:** circuit PE-mesh peel; H10; FPGA synth; phenom d=5 PE-mesh.
+
+---
+
+## 4. Tooling
+
+Stim (`after_clifford` + reset flips), `gen_stim_rtl_vectors`, Verilator 5.050, Icarus for Blueprint. Heartbeats ≥15s. ETA budget ~1800s (PE-mesh heavier than SoA grow_merge).

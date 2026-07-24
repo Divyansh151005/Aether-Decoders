@@ -1,0 +1,46 @@
+# Stim PE-mesh grow→peel circuit d=3 r=3 (M47)
+
+**Status:** Research + PE-mesh decode at V=392 E=556. No H10 RTL.  
+**Locked refs:** `Docs/Pe_Mesh_Stim_Circuit` (M46 grow); M24 peel `MAX_DEG=64`; M10 boundary-root; `aether_uf_peel`; `Docs/Rtl_Scale_Research` (max_deg=63).
+
+---
+
+## 1. Choice (Progress Next)
+
+| Option | Why now / not |
+| --- | --- |
+| **circuit d=3 r=3 PE-mesh peel** | Progress first; M46 left peel out of scope; mirrors M42→M43 / M44→M45 |
+| H10 host I/O notes | Docs-only; weaker than cosim |
+| Phenom d=5 PE-mesh | Larger E; after circuit decode closes |
+| Third seed OSD | Ranking not required (M29 overlap) |
+
+**Chosen:** grow→peel on same Stim vectors as M46. **Rejected:** H10 this milestone.
+
+---
+
+## 2. Scale / peel facts
+
+| Item | Value |
+| --- | --- |
+| Graph | V=392 E=556 (M24/M46) |
+| max_deg | **63** → peel **MAX_DEG=64** (M24) |
+| TB | MAX=600 IDX_W=16 (scale); PE-mesh grow → peel |
+| Goldens | cycles/solid ≡ helios_pe; corr/peel_ops ≡ decode_cosim |
+| Cases | **2** (M24/M46 density) |
+
+---
+
+## 3. Smallest validated slice
+
+| Artifact | Role |
+| --- | --- |
+| `tb_aether_uf_pe_mesh_stim_scale_decode.sv` | Circuit PE-mesh grow→peel |
+| `scripts/pe_mesh_stim_circuit_decode_sim.sh` | Verilator 2/2; M46 grow + Blueprint smokes |
+
+**Out of scope:** H10; FPGA synth; phenom d=5 PE-mesh.
+
+---
+
+## 4. Tooling
+
+Same as M46 + `aether_uf_peel`. Verilator primary. Heartbeats ≥15s. ETA ~1800s.
