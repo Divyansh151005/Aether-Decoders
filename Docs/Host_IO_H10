@@ -1,0 +1,122 @@
+# Host I/O (H10) — syndrome frames + observable out
+
+**Status:** M48 notes + M50/M52 ring RTL + **M53** obs egress (`aether_uf_obs_egress`). No PCIe.  
+**Locked refs:** `Docs/Hardware_Mapping` H9–H10 + §2–§4; Helios arXiv:2406.08491 (LUTRAM PE state; BRAM for static/host); Overview Phase 3 (PCIe/UDP deferred); M10 frozen `syndrome[]`; measured `results/uf_graph_sizes.csv`; Stim PE-mesh ingest path (M42–M47 `syn`/`syn_mem`); `Docs/H10_Ring_Rtl`.
+
+---
+
+## 1. Choice (Progress Next)
+
+| Option | Why now / not |
+| --- | --- |
+| **H10 host I/O notes** | Progress first; last open PE-grid checklist item before FPGA bring-up that is still docs-only; Stim PE-mesh decode path closed (M47) |
+| H11 MWPM-fallback notes | Policy + timeout measurement; needs measured timeout rate (Overview hybrid) — after I/O contract exists |
+| Phenom d=5 PE-mesh | Optional Stim scale; not on critical Hardware_Mapping path |
+| Third seed OSD | Ranking not required (M29 overlap) |
+
+**Chosen:** H10 notes. **Rejected:** H11 / more PE-mesh this milestone.
+
+---
+
+## 2. What H10 is (and is not)
+
+| Is | Is not |
+| --- | --- |
+| On-chip **BRAM/URAM** buffers for syndrome **frames** in and observable **words** out | PE clustering state (that is **LUTRAM/regs** — Helios + H9; Overview “dual-port BRAM for clustering” is wrong) |
+| Ring / double-buffer so host can write round \(t{+}1\) while decoder runs round \(t\) | DDR as the syndrome path (Overview: DDR too slow for µs decode) |
+| Contract for later **PCIe / UDP / gRPC** (Overview Phase 3) | Implementing PCIe drivers or Qblox/ZI bindings now |
+| Sized from **measured** Stim \(V\)/`obs` counts | Guessed “4-neighbor lattice” frame sizes |
+
+---
+
+## 3. Frame formats (Aether SoA ↔ FPGA)
+
+### 3.1 Syndrome ingest
+
+- **Source of truth:** frozen `syndrome[v]` after shot ingest (`peeling` / RTL peel). Host must not rewrite mid-decode.
+- **Logical frame:** bitvector over **detectors** from the DEM (Stim detector outcomes). Virtual **boundary** vertices are software-created (`is_boundary`); they enter SoA as syndrome **0** unless a future path marks them — do not stream host bits for boundaries unless the compile map says so.
+- **PE / RTL load (today):** M42–M47 pack detector+boundary nodes into `syn` / `syn_mem[0‥V)`. Host→FPGA DMA should produce the same **compiled NodeId order** as `CompiledUfDecoder` / `gen_stim_rtl_vectors`.
+- **Width:** \(V\) bits packed little-endian into \(\lceil V/8\rceil\) bytes (or \(\lceil V/32\rceil\) words on AXI).
+
+### 3.2 Observable egress
+
+- After peel, corrections XOR `obs_mask` on solid edges → logical observable bitstring (surface-code memory: typically **1** observable in `uf_graph_sizes.csv`).
+- Host reads a small **obs word** (≤64 bits in current software packing) + optional status (`done`, `timeout`, `peel_ops`).
+- Do not stream full `corr_bits[E]` to host every round unless debugging; keep that on-chip / DPI.
+
+### 3.3 Static tables (not H10 dynamic path)
+
+Compile-time BRAM/URAM: `eu`/`ev`, `capacity`, `is_boundary`, `obs_mask`. Same banks as Helios S3 adjacency / weight tables. Reloaded only on DEM change, not per shot.
+
+---
+
+## 4. Ring / buffering policy
+
+| Depth | Role |
+| --- | --- |
+| **2** (minimum) | Host writes next syndrome while UF grow→peel runs |
+| **3–4** | Hide PCIe jitter / batching once Phase 3 is wired |
+| **1** | Reject for streaming FTQC — stalls QPU on every decode |
+
+Controller handshake (conceptual): `frame_valid` / `frame_ready` on ingest; `obs_valid` / `obs_ready` on egress. Single clock domain with PE mesh until an async FIFO is required at the PCIe clock boundary (Phase 3).
+
+---
+
+## 5. Measured sizing (do not invent)
+
+From `results/uf_graph_sizes.csv` (phenom/circuit, rounds\(=d\), \(p=0.003\)):
+
+| Noise | d | \(V\) (nodes) | Syndrome bytes \(\lceil V/8\rceil\) | Observables |
+| --- | ---: | ---: | ---: | ---: |
+| phenom | 3 | 72 | 9 | 1 |
+| phenom | 21 | 12262 | 1533 | 1 |
+| circuit | 3 | 392 | 49 | 1 |
+| circuit | 17 | 31478 | 3935 | 1 |
+| circuit | 21 | 50722 | 6341 | 1 |
+
+Ring of depth 4 at circuit d=21 ≈ **25 KiB** syndrome SRAM — URAM/BRAM-comfortable. SoA working set (~9.5 MiB at circuit d=21) is **not** the host ring; it is PE/table state (Helios-n / multiplexing territory).
+
+Validated Stim PE-mesh decode today: circuit **d=3 r=3** \(V=392\) \(E=556\) (M47) — natural first H10 TB target when RTL starts.
+
+---
+
+## 6. Transport roadmap
+
+| Stage | Transport | When |
+| --- | --- | --- |
+| **Now (sim)** | File / DPI / TB `syn_mem` load (M20–M47) | Done for co-sim |
+| **H10 RTL (M50)** | Depth-2 syndrome ring + PE-mesh Stim decode TB | Done phenom d=3 r=1; circuit scale next |
+| **Phase 3** | PCIe or UDP into BRAM; C/gRPC to Qblox/ZI (Overview) | After FPGA bring-up |
+| **H11** | Timeout / unsolved → CPU MWPM over same egress path | After measured timeout rate |
+
+Prefer **BRAM ring first**, PCIe second — matches Overview “BRAM banks for syndromes” when interpreted as **host buffers**, not PE register files.
+
+---
+
+## 7. Alternatives considered
+
+| Option | Verdict |
+| --- | --- |
+| DDR syndrome scratchpad | Reject for real-time path (Overview latency) |
+| BRAM for PE context | Reject — Helios/H9 LUTRAM |
+| Streaming full corr vectors every round | Reject for production I/O; debug-only |
+| Skip ring (single buffer) | Reject for continuous rounds |
+| Implement PCIe this milestone | Reject — Phase 3; no part selected |
+
+---
+
+## 8. Co-sim plan (when H10 RTL is allowed)
+
+1. TB: host-side writer fills ring slot; PE-mesh grow→peel (M47 path) reads `syn`; compare obs/corr to `decode_cosim`.
+2. Matched Stim shots (same seed/cases as M47).
+3. No claim of µs wall-clock until board-level timing exists.
+4. Do **not** start H10 Verilog until this checklist row is marked with an explicit TB name in Progress.
+
+---
+
+## 9. Out of scope (M48)
+
+- Any new SystemVerilog for DMA/PCIe/AXI.
+- H11 MWPM fallback RTL or timeout counters.
+- Control-platform bindings (Qblox / ZI).
+- FPGA synth / place-and-route.

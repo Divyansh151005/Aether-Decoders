@@ -1,0 +1,37 @@
+# H10 syndrome ring RTL (M50)
+
+**Status:** M50 phenom ring + **M52** circuit d=3 r=3 ring (`tb_aether_uf_h10_ring_stim_scale`). No PCIe; no obs DMA.  
+**Locked refs:** `Docs/Host_IO_H10` (M48); M10 frozen syndrome; M43 PE-mesh Stim decode; Hardware_Mapping H10.
+
+---
+
+## 1. Choice (Progress Next)
+
+| Option | Why now / not |
+| --- | --- |
+| **H10 BRAM-ring RTL** | Progress first; M48 named the co-sim plan; closes notes→RTL |
+| Measure `DecodeError` rates | H11 gate; software-only — after I/O path exists |
+| Circuit d=3 r=3 ring TB first | V=392 — after depth-2 proven on phenom d=3 r=1 |
+| Third seed OSD | Ranking not required |
+
+**Chosen:** ring RTL + phenom d=3 r=1 Stim decode through the ring. **Rejected:** DecodeError sweep / circuit-scale ring this milestone.
+
+---
+
+## 2. Smallest validated slice
+
+| Artifact | Role |
+| --- | --- |
+| `aether_uf_syndrome_ring.sv` | DEPTH=2 ready/valid frame FIFO (WIDTH=`V` bits) |
+| `tb_aether_uf_h10_ring_stim.sv` | Host writes frames; PE-mesh grow→peel pops; goldens ≡ decode_cosim |
+| `scripts/h10_ring_stim_sim.sh` | gen phenom d=3 r=1; Icarus+Verilator; Blueprint smoke |
+
+**Overlap check:** host writes next shot while grow/peel runs (depth-2 occupancy).
+
+**Out of scope:** PCIe/AXI; obs egress DMA; H11 timeout; circuit V=392 ring; FPGA synth.
+
+---
+
+## 3. Tooling
+
+Stim, `gen_stim_rtl_vectors`, Icarus, Verilator. Heartbeats ≥10s. ETA ~200s.

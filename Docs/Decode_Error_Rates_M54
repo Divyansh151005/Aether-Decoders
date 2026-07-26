@@ -1,0 +1,36 @@
+# UF DecodeError denser grid (M54) — H11 stress
+
+**Status:** Extended abort-rate grid (d=7 + higher p). Does **not** overwrite `uf_decode_error_m51.csv`.  
+**Locked refs:** `Docs/Decode_Error_Rates_M51`; `Docs/Mwpm_Fallback_H11`; Progress M51 (0 aborts on modest grid).
+
+---
+
+## 1. Choice (Progress Next)
+
+| Option | Why now / not |
+| --- | --- |
+| **Denser DecodeError grid** | Progress first; M51 left d=7 / high-p open |
+| FPGA bring-up prep checklist | Docs; after denser rates if still ~0 |
+| Fitted p_th | Not required |
+| Third seed OSD | Ranking not required |
+
+**Chosen:** denser software abort grid. **Rejected:** FPGA prep this milestone.
+
+---
+
+## 2. Method
+
+| Item | Value |
+| --- | --- |
+| Binary / script | Same `count_uf_decode_errors` + `uf_decode_error_rates.py --grid dense` |
+| Output | `results/uf_decode_error_m54.csv` (**new**) |
+| Grid | phenom d∈{5,7} p∈{0.03,0.05,0.08}; circuit d∈{5,7} p∈{0.01,0.015,0.02}; 400 shots; seed=1 |
+| Metric | abort = unsolvable + iter_limit; Wilson 95% |
+
+Cite M51 + M54 together; do not claim zero abort outside measured cells.
+
+---
+
+## 3. Out of scope
+
+- Overwriting M51/threshold CSVs; MWPM wire-in; FPGA timeout RTL.

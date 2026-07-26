@@ -1,0 +1,36 @@
+# H10 syndrome ring @ circuit d=3 r=3 (M52)
+
+**Status:** Depth-2 ring → PE-mesh grow→peel on circuit V=392 E=556. No PCIe; no obs DMA.  
+**Locked refs:** `Docs/H10_Ring_Rtl` (M50); M47 scale decode; M24 MAX_DEG=64; `Docs/Host_IO_H10`.
+
+---
+
+## 1. Choice (Progress Next)
+
+| Option | Why now / not |
+| --- | --- |
+| **H10 ring @ circuit d=3 r=3** | Progress first; M50 deferred circuit scale |
+| Obs-egress stub | Useful; after ingest path scales |
+| Fitted p_th | Not required |
+| Third seed OSD | Ranking not required |
+
+**Chosen:** scale ring TB to MAX=600 IDX_W=16 MAX_DEG=64. **Rejected:** obs egress this milestone.
+
+---
+
+## 2. Smallest validated slice
+
+| Artifact | Role |
+| --- | --- |
+| `tb_aether_uf_h10_ring_stim_scale.sv` | Circuit-scale H10 ring + PE-mesh decode |
+| `scripts/h10_ring_circuit_sim.sh` | gen circuit d=3 r=3 (2 cases); Verilator; Blueprint smoke |
+
+Ring DUT unchanged (`aether_uf_syndrome_ring`). Overlap fill during grow retained.
+
+**Out of scope:** PCIe; obs DMA; FPGA synth.
+
+---
+
+## 3. Tooling
+
+Stim, Verilator primary, Icarus Blueprint. Heartbeats ≥15s. ETA ~1800s.

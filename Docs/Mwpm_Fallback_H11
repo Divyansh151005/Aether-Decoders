@@ -1,0 +1,107 @@
+# MWPM fallback (H11) — timeout / unsolved → CPU
+
+**Status:** M49 policy + **M51/M54** measured abort rates. No MWPM wire-in; no timeout RTL.  
+**Locked refs:** Overview hybrid; Hardware_Mapping H10–H11; `DecodeError`; `Docs/Decode_Error_Rates_M51` / `M54`.
+
+---
+
+## 1. Choice (Progress Next)
+
+| Option | Why now / not |
+| --- | --- |
+| **H11 MWPM-fallback notes** | Progress first; last open Hardware_Mapping **policy** row before FPGA; H10 contract already written (M48) |
+| H10 BRAM-ring RTL | Needs named TB + Stim co-sim; larger than notes; after H11 policy so status bits have a sink |
+| Fitted p_th / PyO3 | Only if required |
+| Third seed OSD | Ranking not required (M29 overlap) |
+
+**Chosen:** H11 notes. **Rejected:** H10 RTL this milestone.
+
+---
+
+## 2. What H11 is (and is not)
+
+| Is | Is not |
+| --- | --- |
+| Policy: when FPGA UF aborts, host runs **MWPM** (PyMatching / equivalent) on the **same** DEM + syndrome | Claiming UF is “wrong” whenever logicals disagree with MWPM (M5b: disagree expected; both completed) |
+| Triggers + status bits on the H10 egress path | Inventing a timeout threshold without measured rates |
+| Gate FPGA→CPU offload on **measured** timeout / unsolved frequency | Routing every shot to MWPM “just in case” |
+| Surface-code graphlike DEM path | Relay-BP / qLDPC fallback (separate stack; Overview) |
+
+---
+
+## 3. Software triggers already defined (Aether UF)
+
+From `DecodeError` in `src/engine.rs`:
+
+| Variant | Meaning | Fallback? |
+| --- | --- | --- |
+| `Unsolvable { remaining_odd, … }` | Active odd clusters remain; no growth progress (disconnected / stuck) | **Yes** — treat as unsolved |
+| `IterationLimit { steps }` | Hit safety cutoff in `decode_to_neutral` | **Yes** — treat as timeout-class abort |
+| Ok + peel completes | Normal path | **No** — even if obs ≠ MWPM |
+
+**Do not** use UF–MWPM logical disagreement alone as an H11 trigger. Disagreement is an accuracy metric (threshold sweeps), not a decoder hang.
+
+RTL / Helios-style controllers need an analogous abort:
+
+1. **Cycle budget:** wall-clock or cycle counter exceeds budget (Helios worst-case \(O(d^4)\); avg ≪ budget at published points — cite paper numbers with noise model, do not invent Aether µs claims).
+2. **Stall:** `any_active` stuck with no solidify/merge progress for \(N\) controller ticks (maps to `Unsolvable`).
+3. Optional later: explicit `force_fallback` from host.
+
+---
+
+## 4. Host MWPM path (when triggered)
+
+1. FPGA asserts H10 status: `timeout` or `unsolved` (and does **not** commit a speculative obs as final).
+2. Host already holds the syndrome frame (H10 ring) + compiled DEM / Matching graph (same Stim DEM as UF).
+3. Run **PyMatching** (existing Python bake-off stack) or a future native MWPM; return obs bits to the control stack.
+4. Log shot for offline rate measurement (mandatory before tuning budgets).
+
+Compile once, decode many — same discipline as `decode_shots` / Sinter adapter. Do not re-compile DEM per fallback shot.
+
+---
+
+## 5. Measurement gate (Hardware_Mapping H11)
+
+| Metric | How | Gate |
+| --- | --- | --- |
+| Unsolved rate | Count `DecodeError::Unsolvable` / shots (software first) | Must be known before FPGA timeout RTL |
+| Iteration-limit rate | Count `IterationLimit` | Same |
+| Cycle-budget timeout rate | FPGA counter vs Helios-style budget (board later) | Do not pick a constant from Overview “1–50 µs” alone |
+| UF vs MWPM disagree | Already in smoke/threshold scripts | **Accuracy**, not H11 trigger |
+
+**Measured (cite CSVs):**
+
+- **M51** (`uf_decode_error_m51.csv`): phenom/circuit d∈{3,5} modest p — 0 aborts / 12×400; Wilson hi ≈ 0.95%/cell.
+- **M54** (`uf_decode_error_m54.csv`): phenom/circuit d∈{5,7} higher p — still 0 aborts / 12×400; Wilson hi ≈ 0.95%/cell.
+
+Do not claim zero abort outside these cells or for FPGA cycle budgets. Keep fallback **off** in production until board rates exist, or use a conservative sim-only ceiling.
+
+---
+
+## 6. Alternatives considered
+
+| Option | Verdict |
+| --- | --- |
+| Always-on MWPM parallel race | Reject for FTQC latency / host load; Overview is abort-then-offload |
+| OSD / Relay as surface-code fallback | Reject — wrong code family for this UF path |
+| Soft-only “best effort” obs on timeout | Reject — must mark invalid and re-decode |
+| H10 RTL before H11 policy | Deferred — status bits need defined semantics |
+| Invent 10 µs fixed timeout | Reject — measure first; cite Helios averages only as literature |
+
+---
+
+## 7. Co-sim / bring-up plan (later)
+
+1. Software: instrument `decode_to_neutral` error rates on M11/M12-style grids (append columns; do not overwrite cited CSVs).
+2. When H10 ring RTL exists: drive `timeout`/`unsolved` flags in TB; host stub calls PyMatching; compare obs to pure-MWPM golden on those shots only.
+3. Board: PCIe path per Overview Phase 3; same status word.
+
+---
+
+## 8. Out of scope (M49)
+
+- Wiring PyMatching into `decode_shots` or FPGA egress.
+- Timeout counters in SystemVerilog.
+- H10 BRAM-ring RTL.
+- Claiming a production timeout budget or fallback rate.
+- qLDPC / Relay fallback design.

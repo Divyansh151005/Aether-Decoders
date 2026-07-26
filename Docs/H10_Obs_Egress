@@ -1,0 +1,35 @@
+# H10 observable egress stub (M53)
+
+**Status:** Obs XOR + ready/valid status after PE-mesh peel; Stim phenom d=3 r=1 co-sim. No PCIe.  
+**Locked refs:** `Docs/Host_IO_H10` §3.2; M50/M52 syndrome ring; `CompiledUfDecoder::observables_from_corrections`; M10 peel corr.
+
+---
+
+## 1. Choice (Progress Next)
+
+| Option | Why now / not |
+| --- | --- |
+| **H10 obs-egress stub** | Progress first; completes H10 ingest→egress contract |
+| Denser DecodeError grid | Optional; M51 already 0/400 on modest grid |
+| Third seed OSD | Ranking not required |
+
+**Chosen:** obs egress RTL + Stim goldens. **Rejected:** denser abort grid this milestone.
+
+---
+
+## 2. Smallest validated slice
+
+| Artifact | Role |
+| --- | --- |
+| `aether_uf_obs_egress.sv` | XOR `obs_mask` on `corr_bits` → `obs_word`; `obs_valid`/`obs_ready`; status |
+| `gen_stim_rtl_vectors` | Emits `STIM_NUM_OBS`, `C*_OBS`, `obs_mask_mem` under `STIM_WITH_OBS` |
+| `tb_aether_uf_h10_obs_stim.sv` | Ring → grow→peel → obs; compare `C*_OBS` |
+| `scripts/h10_obs_stim_sim.sh` | phenom d=3 r=1; Icarus+Verilator |
+
+**Out of scope:** PCIe; H11 timeout≠0 path; circuit-scale obs TB.
+
+---
+
+## 3. Tooling
+
+Stim, Icarus, Verilator. Heartbeats ≥10s. ETA ~200s.

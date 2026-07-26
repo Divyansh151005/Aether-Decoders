@@ -1,0 +1,37 @@
+# UF DecodeError rates (M51) — H11 measurement gate
+
+**Status:** Measured software `Unsolvable` / `IterationLimit` rates on phenom + circuit grids. No MWPM wire-in; no timeout RTL.  
+**Locked refs:** `Docs/Mwpm_Fallback_H11`; `src/engine.rs` `DecodeError`; do not overwrite `threshold_*.csv`.
+
+---
+
+## 1. Choice (Progress Next)
+
+| Option | Why now / not |
+| --- | --- |
+| **Measure DecodeError rates** | Progress first; H11 explicitly gates fallback on measured rates |
+| H10 ring @ circuit d=3 r=3 | Scale after H11 gate has numbers |
+| Fitted p_th | Not required for H11 |
+| Third seed OSD | Ranking not required |
+
+**Chosen:** software abort-rate grid. **Rejected:** circuit H10 ring this milestone.
+
+---
+
+## 2. Method
+
+| Item | Value |
+| --- | --- |
+| Binary | `count_uf_decode_errors` (release) — continues after errors |
+| Script | `scripts/uf_decode_error_rates.py` |
+| Output | `results/uf_decode_error_m51.csv` (**new**; no overwrite of cited CSVs) |
+| Grid | phenom d∈{3,5} p∈{0.01,0.02,0.03}; circuit d∈{3,5} p∈{0.003,0.005,0.01}; 400 shots; seed=1 |
+| Metric | `abort = unsolvable + iter_limit`; Wilson 95% on abort rate |
+
+Abort ≠ UF–MWPM logical disagree (M5b).
+
+---
+
+## 3. Out of scope
+
+- PyMatching fallback wire-in; FPGA cycle-budget timeout; H10 circuit ring; fitted p_th.
