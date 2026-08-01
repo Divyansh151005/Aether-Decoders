@@ -1,0 +1,78 @@
+# M56 — Name FPGA part + S0 synth smoke
+
+**Status:** Research + G1–G3 smoke. Yosys resource counts only — **not** Helios-class timing / Vivado P&R.  
+**Locked refs:** `Docs/Fpga_Bringup_Prep` S0 / G1–G3; Helios arXiv:2406.08491 (VCU129); AMD VCU129 kit (Virtex UltraScale+ VU13P); `rtl/aether_uf_or_tree.sv`, `rtl/aether_uf_syndrome_ring.sv`.
+
+---
+
+## 1. Choice (Progress Next)
+
+| Option | Verdict |
+| --- | --- |
+| **Name part + S0 synth** | Progress first; unblocks G1–G3 |
+| Fitted UF p_th | Optional; does not unblock bring-up |
+| Third seed OSD | Ranking not required (M29 overlap) |
+| Full PE-grid / S1+ | Reject until S0 report filed |
+
+**Chosen:** G1 board/part name + S0 Yosys smoke on OR-tree and syndrome ring. **Rejected:** fitted p_th; inventing Vivado timing claims without Vivado.
+
+---
+
+## 2. Part / board (G1)
+
+| Field | Value | Cite |
+| --- | --- | --- |
+| Board | **AMD/Xilinx VCU129** | Helios arXiv:2406.08491 §VI (experimental setup); Helios GitHub notes Vivado 2019.1–2023.2 |
+| Device family | Virtex UltraScale+ | AMD VCU129 kit product line |
+| Part string (synth target) | **`xcvu13p-fhgb2104-2-e`** | Standard VCU129 FPGA SKU (VU13P FHGB2104 speed -2E); used when Vivado is available |
+| Purchase lock | **No** — candidate / literature anchor only | Fpga_Bringup_Prep §3 |
+
+**Rejected:** inventing a different UltraScale+ SKU without cite; claiming board ownership.
+
+---
+
+## 3. Tooling (G2)
+
+| Path | Role |
+| --- | --- |
+| `fpga/s0/` | Documented project root for S0 |
+| `fpga/s0/run_yosys_s0.sh` | Yosys `synth_xilinx` smoke (this milestone) |
+| `fpga/s0/vivado_s0.tcl` | Vivado synth stub for when Vivado is installed |
+| Vivado | **Not installed** on this host — stub only |
+
+---
+
+## 4. S0 DUT slices
+
+| DUT | Params | Why |
+| --- | --- | --- |
+| `aether_uf_or_tree` | N=8 | Combinational H8 leaf (Fpga_Bringup_Prep S0) |
+| `aether_uf_syndrome_ring` | WIDTH=16 DEPTH=2 | H10 frame ring; exercises FF/mem vs pure combo |
+
+**Rejected:** PE-mesh / Stim V=392 as S0 (resource cliff; S3+).
+
+---
+
+## 5. Evidence bar
+
+- File **new** `results/fpga_s0_synth_m56.csv` (do not overwrite threshold / DecodeError CSVs).
+- Label tool: Yosys vs Vivado. Yosys ≠ timing closure on VU13P.
+- `cargo test` still green.
+
+### Measured (M56 Yosys `synth_xilinx -family xcup`)
+
+| DUT | LUT | FF | BRAM | URAM | cells |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| `aether_uf_or_tree` N=8 | 14 | 0 | 0 | 0 | 32 |
+| `aether_uf_syndrome_ring` W=16 D=2 | 30 | 42 | 0 | 0 | 164 |
+
+Ring BRAM=0 is expected at this depth/width (distributed as FFs).
+
+---
+
+## 6. Out of scope
+
+- Bitstream / board loopback / PCIe.
+- Claiming µs/round or Helios LUT fit.
+- S1+ PE-mesh synth.
+- Vivado install / license.

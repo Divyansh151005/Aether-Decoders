@@ -1,0 +1,3 @@
+dut,label,board,part,tool,lut,ff,bram,uram,cells,log
+aether_uf_or_tree,N=8,VCU129,xcvu13p-fhgb2104-2-e,yosys_xcup,14,0,0,0,32,/Users/divyanshbarodiya/Desktop/Aether-Decoders/fpga/s0/out/aether_uf_or_tree.yosys.log
+aether_uf_syndrome_ring,WIDTH=16_DEPTH=2,VCU129,xcvu13p-fhgb2104-2-e,yosys_xcup,30,42,0,0,164,/Users/divyanshbarodiya/Desktop/Aether-Decoders/fpga/s0/out/aether_uf_syndrome_ring.yosys.log

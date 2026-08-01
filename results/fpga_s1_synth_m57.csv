@@ -1,0 +1,3 @@
+dut,label,board,part,tool,lut,ff,bram,uram,cells,log
+aether_uf_pe_mesh_s1_top,Blueprint_N4_M4,VCU129,xcvu13p-fhgb2104-2-e,yosys_xcup,4020,213,0,0,7321,/Users/divyanshbarodiya/Desktop/Aether-Decoders/fpga/s1/out/aether_uf_pe_mesh_s1_top.yosys.log
+aether_uf_pe_mesh_s1_n8,headroom_N8_M8,VCU129,xcvu13p-fhgb2104-2-e,yosys_xcup,17233,389,0,0,27699,/Users/divyanshbarodiya/Desktop/Aether-Decoders/fpga/s1/out/aether_uf_pe_mesh_s1_n8.yosys.log

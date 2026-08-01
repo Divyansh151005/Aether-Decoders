@@ -1,0 +1,113 @@
+# FPGA bring-up prep checklist (M55)
+
+**Status:** Prep + S0–S3 Yosys + cliff + Helios-n through **M70** coloring. No Vivado bitstream / Stim Helios-n grow RTL.  
+**Locked refs:** Helios; through `Docs/Helios_n_Coloring_M70`; `results/helios_n_coloring_m70.csv`.
+
+---
+
+## 1. Choice (Progress Next)
+
+| Option | Why now / not |
+| --- | --- |
+| **FPGA bring-up prep checklist** | Progress first; H1–H12 co-sim/notes closed enough to plan board work without inventing RTL |
+| Fitted UF p_th | Optional; not required for bring-up plan |
+| Third seed OSD | Ranking not required (M29 overlap) |
+| Full-chip PE-grid Verilog | **Blocked** until checklist gates below are green |
+
+**Chosen:** docs checklist. **Rejected:** synth/bitstream / full-chip RTL this milestone.
+
+---
+
+## 2. Co-sim readiness (Hardware_Mapping)
+
+| ID | Ready for board planning? | Evidence |
+| --- | --- | --- |
+| H1–H7 | **Yes** (sim) | PE-mesh Stim grow→peel phenom + circuit d=3 r=3 (M42–M47) |
+| H8 | **Yes** (sim) | OR-tree + Blueprint ctrl (M30–M33); **not** yet wired into Stim PE-mesh cycle goldens |
+| H9 | **Micro only** | Helios-2 LUTRAM ctx (M39–M41); not full Helios-n on Stim scale |
+| H10 | **Sim stub** | Syndrome ring + obs egress (M50–M53); **no** PCIe/UDP |
+| H11 | **Rates only** | M51/M54: 0 software aborts on measured grids; **no** timeout RTL / MWPM wire-in |
+| H12 | **Yes** (sim) | File + DPI Stim through circuit d=3 r=3 |
+
+**Gate:** Do not claim FPGA latency or resource numbers until a named part + synth report exists.
+
+---
+
+## 3. Part / board selection (cite, do not invent)
+
+| Criterion | Guidance |
+| --- | --- |
+| Literature anchor | Helios reports **Xilinx VCU129** for d≤21 phenom / d≤17 circuit without multiplexing; Helios-n for larger (arXiv:2406.08491). Prefer a Ultrascale+ class part in the same family **or** document a deliberate smaller/cheaper substitute with Helios-n multiplexing from day one. |
+| On-chip memory | PE state = **LUTRAM/regs** (H9); static DEM + H10 rings = **BRAM/URAM**. Size rings from `uf_graph_sizes.csv` (e.g. circuit d=21 syndrome ≈6 KiB/frame; SoA working set ≫ ring). |
+| Host | Start with **JTAG / UART / DMA-lite** for bring-up; Phase 3 PCIe/UDP per Overview — after H10 ring proven on board. |
+| **Named (M56 G1)** | Board **VCU129**; part **`xcvu13p-fhgb2104-2-e`**. Cite Helios + AMD VCU129 kit. **No purchase lock.** |
+| Project path (G2) | `fpga/s0/` — Yosys `run_yosys_s0.sh`; Vivado stub `vivado_s0.tcl` (Vivado not on M56 host). |
+
+**Rejected now:** inventing a custom ASIC; copying Helios Verilog verbatim (license + Aether boundary semantics).
+
+---
+
+## 4. Tooling checklist
+
+| Tool | Role | Status in-repo |
+| --- | --- | --- |
+| Stim + `gen_stim_rtl_vectors` | Goldens | Done |
+| Icarus / Verilator | RTL co-sim | Done (M18–M53) |
+| `cargo test` / release `decode_shots` | Software gate | Done |
+| Vivado (or vendor equiv.) | Synth / P&R / bitstream | **Stub** `fpga/s0/vivado_s0.tcl` — install when board available |
+| Yosys `synth_xilinx -family xcup` | S0 smoke | **M56** `results/fpga_s0_synth_m56.csv` — not Helios-class timing |
+
+Long jobs: keep Progress ETA + ≥15 s heartbeats for synth as for bake-offs.
+
+---
+
+## 5. Staged synth plan (when checklist allows)
+
+Do **not** jump to full Stim V=50k PE grid.
+
+| Stage | DUT slice | Pass criterion |
+| --- | --- | --- |
+| **S0** | `aether_uf_or_tree` or `syndrome_ring` alone | **M56 smoke:** Yosys xcup report in `results/fpga_s0_synth_m56.csv`. Vivado util/timing still required for authoritative VU13P closure. |
+| **S1** | Blueprint PE-mesh grow→peel (N≤8) | **M57** grow; **M60** peel; **M62** combined `fpga_s1_combined_m62.csv` **13364 LUT** — S1 Yosys closed. |
+| **S2** | Helios-2 micro grow→peel (H9) | **M58 smoke:** Yosys H9+Helios2 in `results/fpga_s2_synth_m58.csv` (BRAM=0); Verilator Helios-2 decode. Peel not Yosys. |
+| **S3** | Phenom d=3 r=1 PE-mesh + H10 ring/obs (V=16) | **M61** ring+grow; **M63** peel; **M64** combined **153509 LUT** (`fpga_s3_combined_m64.csv`) — S3 Yosys closed; obs not Yosys. |
+| **S4** | Circuit d=3 r=3 (V=392) | **M65:** grow-only Yosys **timeout 1800 s** (`fpga_s4_grow_m65.csv`) — flat PE cliff; no LUT. Peel/combined not attempted. |
+| **S5** | Helios-n / larger d | **M67–M70:** notes, partition, schedule, **coloring** (7 phys / 16 parts); lattice grow co-sim open |
+
+**Pipe OR-tree into Stim PE-mesh:** only when cycle goldens account for `+depth` (Pe_Grid_Prep note).
+
+---
+
+## 6. Go / no-go before full-chip Verilog
+
+| Gate | Requirement |
+| --- | --- |
+| G1 | Part + board named in Progress — **PASS (M56):** VCU129 / `xcvu13p-fhgb2104-2-e` |
+| G2 | Vivado (or equiv.) project path documented — **PASS (M56):** `fpga/s0/` (+ Vivado stub); Vivado binary still missing |
+| G3 | S0 synth report exists with LUT/FF/BRAM/URAM counts — **PASS smoke (M56 Yosys)**; Vivado util.rpt still open |
+| G4 | H10 host path on board or S3 netlist sim (syndrome in / obs out) |
+| G5 | H11: keep MWPM fallback **off** until board timeout rate measured (M51/M54 are software aborts only) |
+| G6 | No Overview “dual-port BRAM for PE clustering” / “4-neighbor only” regressions |
+
+Until **G1–G3** pass: simulation-only PE-mesh remains the source of truth.  
+**M56:** G1–G3 smoke green (Yosys); full-chip Verilog still blocked until Vivado S0 util/timing **or** explicit Progress override. Sim PE-mesh remains SoT for decode correctness.
+
+---
+
+## 7. Alternatives considered
+
+| Option | Verdict |
+| --- | --- |
+| Start full Stim PE-grid SV now | Reject — checklist G1–G3 open; resource cliff |
+| HLS from Rust | Reject for PE core — Helios-style SV already co-simmed |
+| Soft-CPU UF on FPGA | Reject for FTQC latency path; OK only as debug |
+| Fitted p_th before prep | Optional; does not unblock synth staging |
+
+---
+
+## 8. Out of scope (M55)
+
+- Purchasing hardware; Vivado project creation; any new SystemVerilog for board IPs.
+- Claiming µs/round or LUT counts.
+- Phase 3 Qblox/ZI bindings.
+- Relay-BP FPGA.

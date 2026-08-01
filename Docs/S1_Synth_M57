@@ -1,0 +1,67 @@
+# M57 — S1 Blueprint PE-mesh Yosys synth
+
+**Status:** S1 smoke. Yosys on PE-mesh grow (Blueprint N≤8); Verilator grow→peel bit-identical. **Not** Vivado timing.  
+**Locked refs:** `Docs/Fpga_Bringup_Prep` S1; M38 `Docs/Pe_Mesh_Decode`; `rtl/aether_uf_pe_graph_grow.sv`; Helios arXiv:2406.08491; M56 `fpga/s0/`.
+
+---
+
+## 1. Choice (Progress Next)
+
+| Option | Verdict |
+| --- | --- |
+| Vivado S0 util/timing | **Blocked** — Vivado not installed |
+| **S1 Blueprint PE-mesh Yosys** | Progress alternate; unblocks resource cliff visibility |
+| Fitted UF p_th | Optional; does not advance FPGA staging |
+| Third seed OSD | Ranking not required (M29 overlap) |
+| Full Stim PE-mesh synth | Reject — S3+; V=16 / V=392 later |
+
+**Chosen:** Yosys S1 on Blueprint-sized `pe_graph_grow` + Verilator 8/8 grow→peel. **Rejected:** peel packed-port rewrite this milestone; inventing Vivado numbers.
+
+---
+
+## 2. Peel / Yosys gap
+
+Yosys 0.68 rejects `aether_uf_peel` unpacked array ports (`solid_bits [0:MAX_E-1]`, …). Icarus/Verilator remain SoT for peel.
+
+| Path | Verdict |
+| --- | --- |
+| Rewrite peel → packed buses + update ~15 TBs | Defer — correctness risk vs S1 scope |
+| Dual peel_synth copy | Reject — dual maintenance |
+| **Synth grow only; sim grow→peel** | **Chosen** — matches S1 “PE-mesh” resource question; peel still co-simmed |
+
+---
+
+## 3. DUT slices
+
+| Top | Params | Why |
+| --- | --- | --- |
+| `aether_uf_pe_mesh_s1_top` | N=4 M=4 IDX_W=8 | Matches `tb_aether_uf_pe_mesh_decode` Blueprint MAX |
+| `aether_uf_pe_mesh_s1_n8` | N=8 M=8 IDX_W=8 | Fpga_Bringup_Prep “N≤8” headroom |
+
+Board/part: VCU129 / `xcvu13p-fhgb2104-2-e` (M56 G1). Tool: Yosys `synth_xilinx -family xcup`.
+
+---
+
+## 4. Evidence bar
+
+- New `results/fpga_s1_synth_m57.csv` (do not overwrite M56 / threshold / DecodeError CSVs).
+- Verilator (or Icarus) PE-mesh decode Blueprint **8/8**.
+- `cargo test` green.
+- Label Yosys ≠ Vivado timing / Helios µs/round.
+
+---
+
+### Measured (M57 Yosys `synth_xilinx -family xcup`)
+
+| DUT | LUT | FF | BRAM | URAM | cells |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| `aether_uf_pe_mesh_s1_top` N=4 M=4 | 4020 | 213 | 0 | 0 | 7321 |
+| `aether_uf_pe_mesh_s1_n8` N=8 M=8 | 17233 | 389 | 0 | 0 | 27699 |
+
+Verilator Blueprint grow→peel: **8/8 PASS**.
+
+---
+
+## 5. Out of scope
+
+- Vivado install; peel bus-port refactor; Stim-scale synth; bitstream; fitted p_th.
