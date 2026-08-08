@@ -1,0 +1,45 @@
+# M62 — S1 combined grow→peel Yosys (N=4)
+
+**Status:** Close S1 with joint synth of Blueprint PE-mesh grow + multi-cycle peel.  
+**Locked refs:** `Docs/Fpga_Bringup_Prep` S1; M57 grow; M60 peel; `rtl/aether_uf_pe_mesh_decode_s1.sv`.
+
+---
+
+## 1. Choice
+
+| Option | Verdict |
+| --- | --- |
+| **S1 combined grow→peel N=4** | **Chosen** — Progress first; pieces already synth OK separately |
+| Peel N=16 longer budget | Defer — M61 timeout; needs FSM soften or hours |
+| S4 circuit grow | Scale cliff after S1 closure |
+| Vivado | Blocked on macOS |
+
+---
+
+## 2. DUT
+
+`aether_uf_pe_mesh_decode_s1` — N=4 M=4 IDX_W=8; peel MAX_DEG=8 (M60 defaults).
+
+---
+
+## 3. Evidence
+
+- New `results/fpga_s1_combined_m62.csv` (do not overwrite M57/M60).
+- Verilator Blueprint PE-mesh decode 8/8.
+- `cargo test` green.
+
+---
+
+### Measured (M62)
+
+| DUT | LUT | FF | BRAM | wall |
+| --- | ---: | ---: | ---: | --- |
+| `aether_uf_pe_mesh_decode_s1` N=4 | 13364 | 1618 | 0 | ~77 s |
+
+≈ M57 grow + M60 peel. Verilator PE-mesh decode **8/8**.
+
+---
+
+## 4. Out of scope
+
+- Peel N=16; S4; Vivado; Helios µs/round.

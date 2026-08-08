@@ -1,0 +1,2 @@
+dut,label,board,part,tool,lut,ff,bram,uram,cells,status,log
+aether_uf_peel_n4,multi_cycle_MAX_N4,VCU129,xcvu13p-fhgb2104-2-e,yosys_xcup,9453,1405,0,0,12928,ok,fpga/s1/out_m60/aether_uf_peel_n4.yosys.log

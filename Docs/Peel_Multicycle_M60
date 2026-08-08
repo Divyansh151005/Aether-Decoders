@@ -1,0 +1,69 @@
+# M60 — Multi-cycle peel FSM (Yosys)
+
+**Status:** Research + RTL. Fixes M59 Yosys hang (single-cycle forest BFS).  
+**Locked refs:** Das arXiv:2001.06598 (Gr-Gen → DFS → Corr); `Docs/Hardware_Mapping` H6/H7; M10 boundary-root; `Docs/Peel_Packed_M59`; Blueprint `decode_cosim` corr/peel_ops.
+
+---
+
+## 1. Choice (Progress Next)
+
+| Option | Verdict |
+| --- | --- |
+| **Multi-cycle peel FSM** | **Chosen** — unblocks S1 peel `synth_xilinx` |
+| S3 phenom V=16 grow+H10 | Parallel track; peel still sim-only until this lands |
+| Vivado S0 | Blocked on macOS |
+
+---
+
+## 2. Algorithm (do not invent)
+
+Match existing `aether_uf_peel` / `peeling.rs` semantics:
+
+1. Build solid adjacency (Gr-Gen edge list → undirected adj).
+2. BFS spanning forest on solid edges (discard back-edges).
+3. Per component: order nodes; **M10** root = boundary in component if any, else a degree-1 node.
+4. Peel leaves toward root; `corr` from frozen syndrome bits.
+
+**Change:** stages that previously ran a full BFS/stack in **one** clock now take **one queue/stack pop per clock** (Das Corr is multi-cycle by nature).
+
+---
+
+## 3. FSM sketch
+
+| State | Work / cycle |
+| --- | --- |
+| IDLE→capture | Load packed buses |
+| BUILD_CLR | Clear tables (node/edge index) |
+| BUILD_E | One solid edge → dual adj push |
+| F_SEEK / F_BFS | Seek unvisited start; one BFS pop + neighbor expand |
+| R_CLR / R_SEEK / R_WALK / R_PICK | Clear visited; stack walk one pop; assign peel_root |
+| SEED | Enqueue degree-1 non-roots |
+| PEEL | One peel op (unchanged) |
+| DONE | `done` |
+
+Packed ports unchanged (M59).
+
+---
+
+## 4. Evidence
+
+- Blueprint decode **8/8** corr/peel_ops ≡ goldens (wall cycles may rise).
+- PE-mesh decode + Helios-2 smoke.
+- Yosys `synth_xilinx` peel N=4 finishes; new `results/fpga_peel_mc_m60.csv` (do not overwrite M57/M59 status CSV meaning — new file).
+- `cargo test` green.
+
+---
+
+### Measured (M60 Yosys `synth_xilinx -family xcup`, ~71 s)
+
+| DUT | LUT | FF | BRAM | cells |
+| --- | ---: | ---: | ---: | ---: |
+| `aether_uf_peel_n4` (multi-cycle) | 9453 | 1405 | 0 | 12928 |
+
+Defaults now MAX_N/E=4, MAX_DEG=8 (Stim TBs override). Blueprint decode **8/8**; PE-mesh + Helios-2 Verilator PASS.
+
+---
+
+## 5. Out of scope
+
+- Vivado; Stim MAX_N=392 peel synth this milestone; changing grow.

@@ -1,0 +1,3 @@
+dut,label,board,part,tool,status,notes
+aether_uf_peel,packed_ports_MAX_N4,VCU129,xcvu13p-fhgb2104-2-e,yosys_0.68,parse_ok_synth_deferred,single-cycle BFS/forest unroll; multi-cycle peel FSM required for synth_xilinx LUT report
+aether_uf_pe_mesh_decode_s1,grow_peel_N4_M4,VCU129,xcvu13p-fhgb2104-2-e,yosys_0.68,deferred_on_peel,waits multi-cycle peel; grow alone in fpga_s1_synth_m57.csv

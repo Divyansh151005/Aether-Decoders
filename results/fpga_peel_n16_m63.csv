@@ -1,0 +1,2 @@
+dut,label,board,part,tool,lut,ff,bram,uram,cells,status,log
+aether_uf_peel_s3,peel_N16_E18_soften,VCU129,xcvu13p-fhgb2104-2-e,yosys_xcup,18023,9509,0,0,28846,ok,fpga/s3/out_m63/aether_uf_peel_s3.yosys.log

@@ -1,0 +1,65 @@
+# M58 — S2 Helios-2 micro Yosys (H9 LUTRAM)
+
+**Status:** S2 smoke. Yosys on H9 LUTRAM ctx + Helios-2 micro grow; Verilator Helios-2 grow→peel. **Not** Vivado timing.  
+**Locked refs:** `Docs/Fpga_Bringup_Prep` S2; Helios arXiv:2406.08491 (LUTRAM not BRAM for PE state); M39–M41; `rtl/aether_uf_pe_lutram_ctx.sv`, `rtl/aether_uf_helios2_micro_grow.sv`.
+
+---
+
+## 1. Choice (Progress Next)
+
+| Option | Verdict |
+| --- | --- |
+| Vivado S0 | **Blocked** — Vivado not installed |
+| **S2 Helios-2 / H9 Yosys** | Progress alternate; LUTRAM vs BRAM check |
+| Peel packed-port refactor | Useful for grow→peel Yosys; defer vs S2 staging |
+| Fitted UF p_th | Optional; does not advance FPGA staging |
+
+**Chosen:** S2 Yosys + Verilator Helios-2 decode. **Rejected:** inventing Vivado LUTRAM reports; Stim-scale Helios-n.
+
+---
+
+## 2. LUTRAM inference bar (do not invent)
+
+Helios: PE context in **LUTRAM/distributed**, not BRAM (`Hardware_Mapping` H9).
+
+| Check | Pass criterion |
+| --- | --- |
+| Yosys final cell list | **BRAM/URAM count = 0** for H9 / Helios-2 DUTs |
+| Yosys log | Banks may flatten to FF lists (“Replacing memory … with list of registers”) — acceptable for N_CTX=2 micro |
+| Vivado | Still required later for explicit LUTRAM utilisation rows |
+
+---
+
+## 3. DUT slices
+
+| Top | Role |
+| --- | --- |
+| `aether_uf_pe_lutram_ctx` | H9 dual-context banks (`(* ram_style = "distributed" *)`) |
+| `aether_uf_helios2_micro_grow` | Helios-2 multiplexed grow (embedded distributed banks) |
+
+Peel: Verilator only (Yosys unpacked-port gap, M57).
+
+---
+
+## 4. Evidence
+
+- New `results/fpga_s2_synth_m58.csv` (do not overwrite M56/M57/threshold CSVs).
+- Verilator Helios-2 micro decode PASS.
+- `cargo test` green.
+
+---
+
+### Measured (M58 Yosys)
+
+| DUT | LUT | FF | BRAM | URAM | mem→regs |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| `aether_uf_pe_lutram_ctx` | 47 | 133 | **0** | **0** | 7 |
+| `aether_uf_helios2_micro_grow` | 410 | 267 | **0** | **0** | 18 |
+
+LUTRAM bar: **PASS** (no BRAM/URAM). Verilator Helios-2 decode: see Progress.
+
+---
+
+## 5. Out of scope
+
+- Vivado; Stim Helios-n; peel Yosys; purchase lock; Helios µs/round claims.

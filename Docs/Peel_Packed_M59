@@ -1,0 +1,53 @@
+# M59 — Peel packed ports (Yosys) + grow→peel S1 closure
+
+**Status:** Lead choice. Vivado blocked on this host; peel bus ports unblock Yosys grow→peel.  
+**Locked refs:** `Docs/S1_Synth_M57` (peel Yosys gap); `Docs/Fpga_Bringup_Prep` S1; Helios H9/H10; M19 peel.
+
+---
+
+## 1. Choice (Progress Next)
+
+| Option | Verdict |
+| --- | --- |
+| Vivado S0 util/timing | **Blocked** — AMD Vivado is Linux/Windows; host is **macOS arm64**. No native install path without a remote Linux box / VM + license. |
+| S3 phenom V=16 + H10 Yosys | Valuable next; still blocked for **decode** synth until peel is Yosys-readable |
+| **Peel packed-port refactor** | **Chosen** — removes M57 blocker; enables Yosys peel + grow→peel S1 top |
+| Fitted UF p_th | Optional; not FPGA staging |
+
+**Trade-off:** Prefer peel refactor over jumping to S3 grow+ring-only (would re-learn the M57 peel gap).
+
+---
+
+## 2. Port layout (cite, do not invent)
+
+Packed buses (Yosys SV frontend):
+
+| Port | Width | Layout |
+| --- | --- | --- |
+| `solid_bits` | `MAX_E` | bit `e` = edge e solid |
+| `syn_mem` / `bnd_mem` | `8*MAX_N` | byte `i` at `[i*8 +: 8]`; peel uses bit 0 (unchanged) |
+| `eu_mem` / `ev_mem` | `IDX_W*MAX_E` | word `e` at `[e*IDX_W +: IDX_W]` |
+| `corr_bits` | `MAX_E` | packed output |
+
+TB-only pack helper: `aether_uf_tb_pack_peel_in` (unpacked arrays → buses; **not** synthesized).
+
+`obs_egress.corr_bits` → packed to match peel (H10 obs TB).
+
+---
+
+## 3. Evidence
+
+- Packed ports + TB packer; `while` → bounded `for` (Yosys frontend).
+- Verilator/Icarus: Blueprint decode + PE-mesh decode + Helios-2 decode **PASS**.
+- Yosys: **parses** peel; full `synth_xilinx` on single-cycle combinatorial BFS **does not finish** in reasonable time (FSM does entire forest in one cycle). Multi-cycle peel FSM required for LUT report (Das Corr / Helios peel path).
+- File note in Progress; optional stub CSV rows only if synth completes later.
+- `cargo test` green.
+
+---
+
+## 4. Out of scope / deferred
+
+- Vivado on macOS; Linux remote bring-up.
+- Multi-cycle peel FSM rewrite (next FPGA peel milestone).
+- Stim V=392 synth; fitted p_th; purchase lock.
+- Claiming Yosys LUT counts for peel this milestone.

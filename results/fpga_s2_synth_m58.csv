@@ -1,0 +1,3 @@
+dut,label,board,part,tool,lut,ff,bram,uram,cells,mem_to_regs,log
+aether_uf_pe_lutram_ctx,H9_N_CTX2,VCU129,xcvu13p-fhgb2104-2-e,yosys_xcup,47,133,0,0,408,7,/Users/divyanshbarodiya/Desktop/Aether-Decoders/fpga/s2/out/aether_uf_pe_lutram_ctx.yosys.log
+aether_uf_helios2_micro_grow,Helios2_N2_M1,VCU129,xcvu13p-fhgb2104-2-e,yosys_xcup,410,267,0,0,1173,18,/Users/divyanshbarodiya/Desktop/Aether-Decoders/fpga/s2/out/aether_uf_helios2_micro_grow.yosys.log

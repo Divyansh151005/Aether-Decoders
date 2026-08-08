@@ -1,0 +1,47 @@
+# M63 — Peel N=16 Yosys (FSM soften)
+
+**Status:** Done — Yosys peel_s3 N16 finished after FSM soften.  
+**Locked refs:** M60 multi-cycle peel; M61 N16 timeout 600s; Das Corr; `Docs/S3_Synth_M61`.
+
+---
+
+## 1. Choice
+
+| Option | Verdict |
+| --- | --- |
+| **Peel N=16 + FSM soften** | **Chosen** — Progress first; closes M61 gap |
+| Longer timeout only | Reject alone — hung in elaborator/proc_mux |
+| S4 circuit grow | Defer — 138k LUT at V=16 already a cliff |
+| Vivado | Blocked on macOS |
+
+---
+
+## 2. Soften (vs M60)
+
+| Was 1 cycle | Now |
+| --- | --- |
+| F_BFS: expand all `MAX_DEG` neighbors | Pop → **F_EXP** one adj slot / cycle |
+| R_WALK: expand all forest nbrs | Pop → **R_EXP** one slot / cycle |
+| R_PICK: scan all `peel_q` | **R_SCAN_BND** / **R_SCAN_DEG** / **R_ASSIGN** |
+| SEED: all nodes | **SEED_REM** / **SEED_ENQ** one node / cycle |
+| PEEL: scan all deg for parent | **PEEL_FIND** one `d` / cycle → apply |
+
+Corr/peel_ops goldens unchanged (wall cycles ↑).
+
+---
+
+## 3. Evidence
+
+| DUT | LUT | FF | BRAM | Wall | Status |
+| --- | ---: | ---: | ---: | ---: | --- |
+| `aether_uf_peel_s3` (N16 E18 soften) | **18023** | **9509** | 0 | ~276 s | ok |
+
+- CSV: `results/fpga_peel_n16_m63.csv` (do not overwrite M60/M61).
+- Blueprint + PE-mesh decode Verilator **8/8**; Helios-2 micro decode PASS; `cargo test` 11/11.
+- Compare M60 Blueprint peel defaults: 9453 LUT / 1405 FF; M61 N16 was timeout 600 s.
+
+---
+
+## 4. Out of scope
+
+- S4; Vivado; obs Yosys; Helios µs/round.
