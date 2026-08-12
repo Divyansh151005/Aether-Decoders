@@ -1,0 +1,4 @@
+dut,label,board,part,tool,lut,ff,bram,uram,cells,status,log
+aether_uf_syndrome_ring,WIDTH16_DEPTH2,VCU129,xcvu13p-fhgb2104-2-e,yosys_xcup,30,42,0,0,164,ok,/Users/divyanshbarodiya/Desktop/Aether-Decoders/fpga/s3/out/aether_uf_syndrome_ring.yosys.log
+aether_uf_pe_mesh_s3_grow,phenom_d3r1_N16_M18,VCU129,xcvu13p-fhgb2104-2-e,yosys_xcup,138502,775,0,0,234287,ok,/Users/divyanshbarodiya/Desktop/Aether-Decoders/fpga/s3/out/aether_uf_pe_mesh_s3_grow.yosys.log
+aether_uf_peel_s3,peel_N16_E18,VCU129,xcvu13p-fhgb2104-2-e,yosys_xcup,,,,,timeout_or_fail,142,/Users/divyanshbarodiya/Desktop/Aether-Decoders/fpga/s3/out/aether_uf_peel_s3.yosys.log

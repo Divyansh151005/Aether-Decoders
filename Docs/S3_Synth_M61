@@ -1,0 +1,56 @@
+# M61 — S3 phenom d=3 r=1 PE-mesh + H10 Yosys (V=16)
+
+**Status:** S3 smoke. Yosys on ring + PE-mesh grow (+ peel if finishes); Verilator H10 phenom.  
+**Locked refs:** `Docs/Fpga_Bringup_Prep` S3; `Docs/Pe_Mesh_Stim` V=16 E=18; M50–M53 H10; M60 multi-cycle peel; VCU129 / `xcvu13p-fhgb2104-2-e`.
+
+---
+
+## 1. Choice (Progress Next)
+
+| Option | Verdict |
+| --- | --- |
+| **S3 phenom V=16 + H10** | **Chosen** — Progress first; advances toward G4 |
+| Combined S1 grow→peel Yosys | Defer — S1 pieces already green (M57+M60) |
+| Vivado S0 | Blocked on macOS |
+
+---
+
+## 2. DUT sizes (cite)
+
+| Slice | Params | Cite |
+| --- | --- | --- |
+| Syndrome ring | WIDTH=16 DEPTH=2 | H10 frame = V nodes; M50 |
+| PE-mesh grow | N=16 M=18 IDX_W=8 | `Docs/Pe_Mesh_Stim` phenom d=3 r=1 |
+| Peel | MAX_N=16 MAX_E=18 MAX_DEG=16 | Multi-cycle M60; Stim TB overrides |
+
+`obs_egress` still has unpacked `obs_mask_mem` → **not** Yosys this milestone (Verilator SoT).
+
+---
+
+## 3. Evidence
+
+- New `results/fpga_s3_synth_m61.csv` (do not overwrite M56–M60 CSVs).
+- Verilator H10 ring (or obs) phenom d=3 r=1 PASS.
+- `cargo test` green.
+- Heartbeats ≥15 s on long synth.
+
+---
+
+### Measured (M61 Yosys)
+
+| DUT | LUT | FF | BRAM | status |
+| --- | ---: | ---: | ---: | --- |
+| syndrome_ring W=16 D=2 | 30 | 42 | 0 | ok |
+| pe_mesh_s3_grow N=16 M=18 | 138502 | 775 | 0 | ok (~330 s) |
+| peel_s3 N=16 E=18 | — | — | — | **timeout 600 s** (N=4 peel OK in M60) |
+
+**M63 follow-up:** FSM-softened peel_s3 → **18023 LUT / 9509 FF** (`results/fpga_peel_n16_m63.csv`, ~276 s).
+
+Verilator H10 ring phenom d=3 r=1: **ALL PASS**.
+
+---
+
+## 4. Out of scope
+
+- Vivado; circuit V=392 (S4); obs Yosys; board loopback; purchase lock.
+- Claiming Stim-scale peel LUT counts this milestone (M61); see M63 for N16 peel after soften.

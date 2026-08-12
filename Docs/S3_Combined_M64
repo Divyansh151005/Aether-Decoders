@@ -1,0 +1,39 @@
+# M64 — S3 combined grow→peel Yosys (N=16)
+
+**Status:** Done — S3 joint grow→peel Yosys closed.  
+**Locked refs:** `Docs/Fpga_Bringup_Prep` S3; M61 grow; M63 peel; M62 S1 combined pattern.
+
+---
+
+## 1. Choice
+
+| Option | Verdict |
+| --- | --- |
+| **S3 combined grow→peel N16** | **Chosen** — Progress “if feasible”; pieces synth OK separately; Fpga_Bringup keeps S4 after S3 netlist stable |
+| S4 circuit V=392 grow-only | Defer — cliff check after S3 closure; V=16 grow alone already 138k LUT |
+| Vivado S0 | Blocked on macOS |
+
+---
+
+## 2. DUT
+
+`aether_uf_pe_mesh_decode_s3` — N=16 M=18 IDX_W=8; peel MAX_DEG=16 (M63 soften).
+
+---
+
+## 3. Evidence
+
+### Measured (M64)
+
+| DUT | LUT | FF | BRAM | wall |
+| --- | ---: | ---: | ---: | --- |
+| `aether_uf_pe_mesh_decode_s3` N16 E18 | **153509** | **10284** | 0 | ~710 s |
+
+≈ M61 grow (138502) + M63 peel (18023). CSV: `results/fpga_s3_combined_m64.csv`.
+Stim phenom PE-mesh decode Verilator **4/4**; `cargo test` 11/11.
+
+---
+
+## 4. Out of scope
+
+- S4 V=392; Vivado; obs Yosys; Helios µs/round; claiming VU13P timing closure.
