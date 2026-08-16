@@ -1,0 +1,8 @@
+dut,label,board,part,tool,lut,ff,bram,uram,cells,status,log,source
+aether_uf_pe_mesh_s1_top,scale_N4_M4,VCU129,xcvu13p-fhgb2104-2-e,yosys_xcup,4020,213,0,0,7321,ok,fpga/s1/out/aether_uf_pe_mesh_s1_top.yosys.log,M57_cite
+aether_uf_pe_mesh_s1_n8,scale_N8_M8,VCU129,xcvu13p-fhgb2104-2-e,yosys_xcup,17233,389,0,0,27699,ok,fpga/s1/out/aether_uf_pe_mesh_s1_n8.yosys.log,M57_cite
+aether_uf_pe_mesh_s3_grow,scale_N16_M18,VCU129,xcvu13p-fhgb2104-2-e,yosys_xcup,138502,775,0,0,234287,ok,fpga/s3/out/aether_uf_pe_mesh_s3_grow.yosys.log,M61_cite
+aether_uf_pe_mesh_grow_n24,scale_N24_M27,VCU129,xcvu13p-fhgb2104-2-e,yosys_xcup,,,,,timeout_abc_1800s,fpga/scale/out_m66/aether_uf_pe_mesh_grow_n24.yosys.log,M66
+aether_uf_pe_mesh_grow_n32,scale_N32_M36,VCU129,xcvu13p-fhgb2104-2-e,yosys_xcup,,,,,timeout_abc_3600s,fpga/scale/out_m66/aether_uf_pe_mesh_grow_n32.yosys.log,M66
+aether_uf_pe_mesh_grow_n64,scale_N64_M72,VCU129,xcvu13p-fhgb2104-2-e,yosys_xcup,,,,,not_run_after_n32_cliff,fpga/scale/out_m66/aether_uf_pe_mesh_grow_n64.yosys.log,M66
+aether_uf_pe_mesh_s4_grow,scale_N392_M556,VCU129,xcvu13p-fhgb2104-2-e,yosys_xcup,,,,,timeout_hierarchy_1800s,fpga/s4/out_m65/aether_uf_pe_mesh_s4_grow.yosys.log,M65_cite

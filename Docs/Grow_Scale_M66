@@ -1,0 +1,40 @@
+# M66 — Intermediate-N PE-mesh grow Yosys scale curve
+
+**Status:** Done — scale cliff locked: Yosys completes ≤N16; N≥24 stalls in ABC (or hierarchy at N392).  
+**Locked refs:** M57 N4/N8; M61 N16; M65 N392 timeout; Helios arXiv:2406.08491 (Helios-n for large d).
+
+---
+
+## 1. Choice
+
+| Option | Verdict |
+| --- | --- |
+| **N=24/32/64 grow-only Yosys + cite priors** | **Chosen** — Progress first; fills scale gap; macOS-viable |
+| Helios-n multiplex notes | Next — curve shows multiplex required above N16 |
+| Vivado S0 | Blocked on macOS |
+
+**Graph sizing:** M≈N sparse like M57/M61 → N24/M27, N32/M36, N64/M72. Resource scaling only (not Stim-exact).
+
+---
+
+## 2. Measured curve (`results/fpga_grow_scale_m66.csv`)
+
+| N | M | LUT | FF | status | wall |
+| ---: | ---: | ---: | ---: | --- | ---: |
+| 4 | 4 | 4020 | 213 | ok (M57) | — |
+| 8 | 8 | 17233 | 389 | ok (M57) | — |
+| 16 | 18 | 138502 | 775 | ok (M61) | ~330 s |
+| 24 | 27 | — | — | **timeout ABC 1800 s** | 1800 s |
+| 32 | 36 | — | — | **timeout ABC 3600 s** | 3600 s |
+| 64 | 72 | — | — | not run (N32 cliff) | — |
+| 392 | 556 | — | — | timeout hierarchy 1800 s (M65) | 1800 s |
+
+**LUT/N (ok rows only):** N4≈1005; N8≈2154; N16≈8656 — superlinear. Do not extrapolate a N24 LUT.
+
+**Cliff lock:** flat `pe_graph_grow` Yosys smoke completes through **N=16** on this host; **N≥24** does not finish ABC within 30–60 min. Helios-n multiplex (cite Helios) required before larger flat PE claims.
+
+---
+
+## 3. Out of scope
+
+- Helios-n RTL; Vivado; peel at N24+; inventing N24/N32 LUT counts.

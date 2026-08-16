@@ -1,0 +1,44 @@
+# M65 — S4 circuit d=3 r=3 grow Yosys (resource cliff)
+
+**Status:** Done — cliff confirmed (Yosys timeout 1800 s in hierarchy derive; no LUT).  
+**Locked refs:** `Docs/Fpga_Bringup_Prep` S4; `Docs/Pe_Mesh_Stim_Circuit` V=392 E=556; M61 V=16 grow 138502 LUT; M64 S3 closed.
+
+---
+
+## 1. Choice
+
+| Option | Verdict |
+| --- | --- |
+| **S4 grow-only N=392 M=556** | **Chosen** — Progress first; cliff check after S3 Yosys closed |
+| Vivado S0 | Blocked on macOS (Linux/Windows only) |
+| Intermediate N=32/64 scale curve | Useful later; not Progress Next |
+| S4 combined grow→peel | Defer — grow cliff first; peel MAX_DEG=64 adds more |
+
+**Extrapolation (not a claim):** linear in N from M61 → ~138k×(392/16) ≈ 3.4M LUT ≫ VU13P ~1.7M — expect timeout, OOM, or unsynthesizable without Helios-n multiplex.
+
+---
+
+## 2. DUT
+
+`aether_uf_pe_mesh_s4_grow` — N=392 M=556 CAP=10 IDX_W=16 (M46 measured graph).
+
+---
+
+## 3. Evidence
+
+### Measured (M65)
+
+| DUT | LUT | FF | status | wall |
+| --- | ---: | ---: | --- | ---: |
+| `aether_uf_pe_mesh_s4_grow` N392 M556 | — | — | **timeout_or_fail** (exit 142) | 1800 s |
+
+Stuck in Yosys `hierarchy` derive of `aether_uf_pe_graph_grow` (N=392 M=556); never reached `synth_xilinx` / `stat`.  
+CSV: `results/fpga_s4_grow_m65.csv`. Circuit PE-mesh grow Verilator **2/2**; `cargo test` 11/11.
+
+**Cliff lock:** flat PE-per-vertex at circuit d=3 r=3 does not complete Yosys smoke in 30 min on this host — Helios-n multiplex (or smaller intermediate N curve) required before claiming VU13P fit.
+
+---
+
+## 4. Out of scope
+
+- S4 peel / combined; Vivado util/timing; Helios-n multiplex RTL; claiming Helios µs/round or any S4 LUT count.

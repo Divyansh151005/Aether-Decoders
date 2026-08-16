@@ -1,0 +1,2 @@
+dut,label,board,part,tool,lut,ff,bram,uram,cells,status,log
+aether_uf_pe_mesh_s4_grow,circuit_d3r3_N392_M556,VCU129,xcvu13p-fhgb2104-2-e,yosys_xcup,,,,,timeout_or_fail,142,/Users/divyanshbarodiya/Desktop/Aether-Decoders/fpga/s4/out_m65/aether_uf_pe_mesh_s4_grow.yosys.log
