@@ -1,0 +1,62 @@
+# M70 — Helios-n physical PE coloring (phenom d=3 r=3)
+
+**Status:** Measured `virtual → phys_pe` map with Helios cross-cut colocation; revise partition vs M68. Docs + CSV + script; **no** Stim Helios-n grow RTL.  
+**Locked refs:** Helios arXiv:2406.08491 (cross-cut adjacent VPs → same physical PE); M69 §3.2; M68 partition; M66 N_phys≤16.
+
+---
+
+## 1. Choice
+
+| Option | Verdict |
+| --- | --- |
+| **PE coloring CSV + feasible partition** | **Chosen** — Progress first; M69 gate before lattice grow |
+| Lattice grow co-sim vs M44 | Defer until map exists |
+| Vivado / G4 | Defer (macOS / later) |
+
+---
+
+## 2. Helios constraint (formal)
+
+For Aether edge-list + time-multiplexed parts:
+
+1. **Same part** → distinct `phys_pe` (concurrent on lattice).  
+2. **DEM edge with endpoints in different parts** → **same** `phys_pe` (Helios local LUTRAM neighbor).  
+
+Constraint (2) is **transitive** along paths of cross-cut edges. Therefore each part may contain **at most one** virtual node from each connected component of the cross-cut graph.
+
+---
+
+## 3. M68 vs feasible schemes (`helios_n_coloring_m70_summary.csv`)
+
+| Scheme | ok | n_parts | max \|S\| | colors | Notes |
+| --- | ---: | ---: | ---: | ---: | --- |
+| `m68_intra_time_det_pack` | **0** | — | — | — | Transitive colocation collides inside parts (e.g. dets 0–3) |
+| **`det_comp_paired`** | **1** | **16** | **7** | **7** | **Chosen** |
+| `one_det` | 1 | 24 | 4 | 4 | Fallback; more context switches |
+
+**Chosen construction:** Stim phenom DEM has **2** detector connected components (sizes 16, 8). Form part \(i\) from the \(i\)-th detector of each component (pad) + those detectors’ private boundaries. Guarantees ≤1 detector per component per part → Helios-feasible. Colors used **7 ≤ 16**.
+
+**Implication:** M68’s n=6 pack remains valid for **Yosys resource** discussion only; it is **not** a legal Helios-n schedule partition under colocation. Prefer **N_CTX≥16** (chosen) for schedule RTL — update vs M69’s N_CTX≥6 hint.
+
+---
+
+## 4. Artifacts
+
+| File | Content |
+| --- | --- |
+| `results/helios_n_coloring_m70.csv` | `virtual_node → phys_pe, part` |
+| `results/helios_n_coloring_m70_phys.csv` | per-phys virtual load |
+| `results/helios_n_coloring_m70_parts.csv` | part membership + slots |
+| `results/helios_n_coloring_m70_crosscuts.csv` | cross edges (colocated) |
+| `results/helios_n_coloring_m70_summary.csv` | scheme bake-off |
+| `scripts/helios_n_coloring_m70.py` | reproducible |
+
+**Reproduce:** `PYTHONPATH=python python3 scripts/helios_n_coloring_m70.py`
+
+---
+
+## 5. Out of scope (at M70)
+
+- Lattice grow co-sim ≡ M44 — **done M71** (`Docs/Helios_n_Grow_Cosim_M71`).  
+- Vivado; claiming Helios µs/round.  
+- Re-using M68 n=6 as Helios schedule without recolor.

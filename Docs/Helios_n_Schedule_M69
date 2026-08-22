@@ -1,0 +1,112 @@
+# M69 — Helios-n schedule / co-sim plan (N_phys≤16, phenom r=3)
+
+**Status:** Lock schedule + co-sim protocol for M68’s 6-part phenom graph; prove H9 **N_CTX=6** 1-cycle switches. **No** Stim-scale multiplexed grow RTL yet.  
+**Locked refs:** Helios arXiv:2406.08491 (stage multiplex + 1-cycle LUTRAM CS); `Docs/Helios_n_Multiplex_M67`, `Docs/Helios_n_Partition_M68`; M39–M41 H9/Helios-2; M66 N_phys≤16; `results/helios_n_partition_m68*.csv`.
+
+---
+
+## 1. Choice
+
+| Option | Verdict |
+| --- | --- |
+| **Schedule + co-sim plan + H9 N_CTX=6 smoke** | **Chosen** — Progress first; M68 deferred RTL until plan locked |
+| Vivado S0 | Blocked on macOS |
+| G4 S3 netlist sim | Defer — multiplex path before more host synth |
+| Full Stim Helios-n grow RTL | Reject — need plan + lattice sizing first |
+
+---
+
+## 2. Lattice sizing (measured)
+
+From M68 parts + induced-edge count (`results/helios_n_schedule_m69_parts.csv`):
+
+| part | \|S\| | induced E | cut E |
+| ---: | ---: | ---: | ---: |
+| 0 | 8 | 7 | 4 |
+| 1–4 | 14 | 12 | 14 |
+| 5 | 8 | 7 | 4 |
+
+| Parameter | Value | Why |
+| --- | --- | --- |
+| N_phys | **16** | M66 Yosys cliff; max \|S\|=14 ≤ 16 |
+| M_phys | **≥12** | max induced edges among parts |
+| N_CTX | **≥6** | M68 n=6 (or stream fewer banks with reload) |
+| IDX_W | 8 | V=72 < 256 |
+
+Physical DUT for a future grow slice: `pe_graph_grow` #(N=16, M=12+) with per-part `num_nodes`/`num_edges` + subgraph edge list (not the full 72/94 mesh).
+
+---
+
+## 3. Schedule (cite Helios; Aether locks)
+
+Helios time-multiplexes sub-graphs onto one lattice **during each decoding stage**, with **1-cycle** PE context switch (LUTRAM).
+
+### 3.1 High-level FSM (software-visible)
+
+```
+load syndrome / init DSU on all virtual PEs (host or bank preload)
+for growth_iteration until globally inactive:
+  for part k in 0..5:
+    switch_pulse → ctx k          // 1 cycle (H9)
+    map part-k induced edges onto lattice ports
+    run grow+merge on lattice until part-local quiescent
+    // cross-cut neighbor state: see §3.2
+  OR-reduce any_active across parts (H8 tree; may be staged)
+peel on frozen syndrome (multi-cycle peel; multiplex TBD after grow goldens)
+```
+
+**Aether locks:** active = odd ∧ ¬`cluster_boundary`; union-by-size; skip same-root growth; peel from frozen `syndrome[]`.
+
+### 3.2 Cross-cut / physical PE map
+
+M68: 24 undirected cross edges. Helios: adjacent virtual PEs in **different** sub-graphs map to the **same** physical PE so neighbor state is local LUTRAM (no Heer extra wires).
+
+**Plan lock:** physical PE assignment is a **function of the virtual graph**, not `phys_id = index_in_part`. Before RTL grow:
+
+1. Build conflict graph: vertices = virtual nodes; edge if they appear together in any part **or** are endpoints of a cross-cut.  
+2. Color / pack into ≤16 physical slots such that every cross-cut pair shares a color (physical PE).  
+3. Persist map as CSV — **Done M70** (`results/helios_n_coloring_m70.csv`); M68 n=6 **infeasible** under transitive colocation; use `det_comp_paired` (n=16, 7 phys).
+
+Until grow RTL exists, co-sim may use **software-oracle** neighbor state (flat grow) as the golden — multiplexed RTL must match, not redefine, solids.
+
+**N_CTX note:** H9 N_CTX=6 smoke (M69) still valid as LUTRAM mechanism test; Helios-**legal** phenom r=3 schedule needs **N_CTX≥16** (M70).
+
+### 3.3 What is *not* claimed
+
+- Cycle count ≡ Helios \(O(d^4)\) on Aether edge-list mesh.  
+- Part-local quiescent ≡ global quiescent without a proven merge across cut edges.  
+- Peel under Helios-n.
+
+---
+
+## 4. Co-sim plan (bit-identical)
+
+| Stage | Golden | Multiplex candidate | Pass criterion |
+| --- | --- | --- | --- |
+| A | Flat `pe_graph_grow` / `helios_pe` phenom d=3 r=3 (M44) | — | already 4/4 |
+| B | H9 N_CTX=6 walk | `aether_uf_pe_lutram_ctx` | 1-cycle restore each ctx (M69 smoke) |
+| C | Flat grow solids on V=72 shots | Helios-n software oracle (M71) / future SV lattice | `solid_bits` / cycles ≡ flat (matched seeds) — **M71 PASS** |
+| D | Flat grow→peel (M45) | Helios-n grow + peel (M72) | corr / peel_ops ≡ `decode_cosim` — **M72 PASS** |
+
+**Matched shots:** reuse M44/M45 Stim vectors; do not invent new noise.
+
+**Heartbeats:** any multi-minute synth/sim ≥15 s.
+
+---
+
+## 5. Smallest validated slice (this milestone)
+
+| Artifact | Role |
+| --- | --- |
+| `Docs/Helios_n_Schedule_M69` | This plan |
+| `results/helios_n_schedule_m69_parts.csv` | Induced/cut edges per part |
+| `rtl/tb_aether_uf_pe_lutram_ctx_n6.sv` | N_CTX=6 sequential switch restore |
+| `scripts/helios_n_ctx6_sim.sh` | Icarus + Verilator smoke |
+
+---
+
+## 6. Out of scope
+
+- Stim Helios-n `pe_graph_grow` schedule RTL / PE coloring CSV.  
+- Vivado; G4 board.  
+- Claiming VU13P fit or Helios µs/round.

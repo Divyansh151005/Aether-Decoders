@@ -1,0 +1,90 @@
+# M67 — Helios-n multiplex research notes (post M66 cliff)
+
+**Status:** Docs only — map Helios-n onto Aether after flat grow Yosys cliff (N≤16 ok; N≥24 ABC timeout). **No new full-chip / Stim-scale Verilog.**  
+**Locked refs:** Maurya et al. Helios arXiv:2406.08491 § “Optimizing resource efficiency”; Heer et al. multi-context PEs (cited by Helios); `Docs/Helios_n_H9` (M39); M40–M41 Helios-2 micro; `Docs/Grow_Scale_M66`; `Docs/Hardware_Mapping` H9; VCU129 / `xcvu13p-fhgb2104-2-e`.
+
+---
+
+## 1. Choice
+
+| Option | Verdict |
+| --- | --- |
+| **Helios-n multiplex research notes** | **Chosen** — Progress first; M66 locks need for multiplex before larger flat PE |
+| Vivado S0 | Blocked on macOS |
+| Helios-n Stim RTL now | Reject — G1–G3 Vivado util open; inventing partition mapper without co-sim plan |
+
+---
+
+## 2. Helios facts (cite; do not invent ISA)
+
+From arXiv:2406.08491:
+
+| Claim | Paper |
+| --- | --- |
+| Resource ~ \(O(d^3 \log d)\) LUTs → d limited on one FPGA | § resource efficiency |
+| **Helios-n:** partition decoding graph into *n* sub-graphs; time-multiplex onto one physical **lattice** (≥ largest sub-graph) | Same |
+| Helios = Helios-1 (no multiplex) | Same |
+| PE context store/load in **LUTRAM** (not BRAM); **1 cycle** switch | Same + Fig. 4 |
+| Cross-cut adjacent virtual PEs → **same** physical PE (avoids Heer extra lattice wires) | Same |
+| VCU129 without CS: ≈ d≤21 phenom / d≤17 circuit | Implementation details |
+| d=27 Helios-4… : e.g. ~48.5 ns/round @ p=0.001 phenom (Helios-4 cited in paper Fig. 11) | Fig. 11 |
+| d=51 Helios-51: **~544 ns/round** average | Abstract + Fig. 11c |
+| Worst-case FPGA cycles \(O(d^4)\) (bound \(3d^4+2d\)) | Complexity section |
+
+Do **not** claim Aether matches Helios ns/round until a named part + bitstream + matched noise model.
+
+---
+
+## 3. Why Aether needs this now (measured, not narrative)
+
+| Evidence | Implication |
+| --- | --- |
+| M61/M64: N=16 grow ~138k LUT; combined ~153k LUT | Flat PE fits Yosys at phenom d=3 r=1 slice |
+| M66: N=24/32 **ABC timeout**; N392 hierarchy timeout (M65) | Flat `pe_graph_grow` Yosys smoke **stops at N=16** on this host |
+| M46–M47: circuit d=3 r=3 V=392 **sim** OK | Correctness ≠ synthesizable flat PE |
+| M39–M41: H9 + Helios-2 micro grow→peel | Context switch **mechanism** exists; Stim-scale schedule does not |
+
+**Gate (Aether):** Any PE-mesh grow with compile-time N>16 targeting Yosys must use Helios-n-style multiplex (physical lattice N_phys≤16 until a longer ABC budget / Vivado proves otherwise) **or** Progress override with measured LUT.
+
+---
+
+## 4. Aether mapping (decisions; still no RTL this milestone)
+
+| Topic | Helios | Aether lock |
+| --- | --- | --- |
+| Virtual PE | 1 per decoding-graph vertex | H1: 1 per `NodeId` (detectors + virtual boundaries) |
+| Physical lattice | Sub-graph topology | Prefer edge-list mesh sized to **largest** sub-graph; start from N_phys≤16 (M66) |
+| Context banks | LUTRAM | H9: `aether_uf_pe_lutram_ctx` — **not BRAM** |
+| Switch cost | 1 cycle | M39 TB: 1-cycle bit-identical restore |
+| Active / union | Helios `codd` / min-cid | Keep Aether H4/H5 (odd∧¬boundary; union-by-size) — co-sim before mixing |
+| Partition axis | Even split along axes; phenom often along **measurement-round** axis | Stim DEM graphs are **not** homogeneous 4-neighbor lattices — partition must be defined on **compiled DEM graph**, not qubit grid; document mapper before RTL |
+| Cross-cut rule | Adjacent cross-subgraph VPs → same physical PE | Required for Aether if following Helios wiring; else inventing Heer-style ports (reject without paper) |
+| Peel | After merge stable | Softened multi-cycle peel (M60/M63); multiplexed peel schedule TBD after multiplexed grow goldens |
+
+**Suggested staged path (future milestones; not started here):**
+
+1. ~~Docs mapper: partition Stim phenom d=3 r=3 (V=72) into n slices with N_phys≤16; list cross-cut PE IDs.~~ **Done M68** (`Docs/Helios_n_Partition_M68`).  
+2. ~~RTL: Helios-n schedule FSM on existing H9 + micro lattice (N_CTX≥6 for M68).~~ **Plan + N_CTX=6 smoke M69**; Stim lattice grow still open.  
+3. Co-sim: multiplexed grow ≡ `helios_pe` / `pe_graph_grow` solids on same shots.  
+4. Yosys: physical lattice only (cite M66).  
+5. Only then circuit V=392 — re-measure partition; \(n\ge\lceil392/16\rceil\) is a lower bound only.
+
+---
+
+## 5. Alternatives
+
+| Alternative | Why rejected now |
+| --- | --- |
+| Keep flat PE and “wait longer for ABC” | N32 still unfinished at 3600 s; not a plan |
+| BRAM context | Contradicts Helios + H9 |
+| Copy Helios open-source Verilog | License + Aether H4/H5; cite behavior only ([Helios_scalable_QEC](https://github.com/NamiLiy/Helios_scalable_QEC)) |
+| Soft-CPU UF for large V | Debug only; not FTQC path |
+| Vivado S0 this step | macOS — no binary |
+
+---
+
+## 6. Out of scope (M67)
+
+- New SystemVerilog for Stim Helios-n lattice / partition mapper.  
+- Claiming VU13P fit, Helios µs/round, or any N>16 flat LUT.  
+- Board bring-up / Vivado util.rpt.

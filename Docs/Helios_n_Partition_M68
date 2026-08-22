@@ -1,0 +1,67 @@
+# M68 — Helios-n partition mapper (Stim phenom d=3 r=3)
+
+**Status:** Measured partition plan for Aether DEM graph V=72 E=94 with **N_phys≤16** (M66 Yosys cliff). Docs + CSV + script; **no Helios-n RTL**.  
+**Locked refs:** Helios arXiv:2406.08491 (time-axis partition + cross-cut → same physical PE); `Docs/Helios_n_Multiplex_M67`; M44/M45 phenom r=3; `uf_graph_sizes.csv` phenom d=3 → 72/94; Aether unique boundary per degree-1.
+
+---
+
+## 1. Choice
+
+| Option | Verdict |
+| --- | --- |
+| **Phenom d=3 r=3 partition mapper notes + measured CSVs** | **Chosen** — Progress first; M67 step 1 |
+| Vivado S0 | Blocked on macOS |
+| G4 S3 netlist sim | Defer — mapper before more host-path synth |
+| Helios-n schedule RTL | Reject until mapper + co-sim plan locked |
+
+---
+
+## 2. Graph (measured)
+
+| Item | Value |
+| --- | --- |
+| Circuit | Stim `rotated_memory_z` phenom (`before_round_data` + `before_measure` only) |
+| d / rounds / p | 3 / 3 / 0.003 |
+| Detectors / boundaries / V / E | 24 / 48 / **72** / **94** (matches M44) |
+| Detector times (coord\[-1\]) | \{0,1,2,3\} with 4,8,8,4 detectors |
+
+Compile rule: `dem_to_payload` + unique virtual boundary per degree-1 error (Aether lock).
+
+---
+
+## 3. Schemes compared (`results/helios_n_partition_m68.csv`)
+
+| Scheme | n | max \|S\| | cross edges | Verdict |
+| --- | ---: | ---: | ---: | --- |
+| **by_time_only** | 4 | **28** | 16 | **Reject** for Yosys — mid times 28>16 |
+| **intra_time_det_pack** | **6** | **14** | 24 | **Chosen** — all parts ≤16 |
+| node_id_shards | 5 | 16 | 58 | Reject — ignores DEM / Helios topology |
+
+**Chosen algorithm:** along Stim detector **time** (Helios-like round axis); within each time, greedily pack detectors so \|dets ∪ their boundaries\| ≤ N_phys=16.
+
+**Parts (summary):** see `results/helios_n_partition_m68_parts.csv` — sizes 8,14,14,14,14,8.
+
+**Cross-cuts:** 24 unique undirected edges in `results/helios_n_partition_m68_crosscuts.csv`. Helios rule: for each cross edge \((u,v)\), map virtual PEs \(u\) and \(v\) to the **same** physical PE so neighbor state stays in that PE’s LUTRAM (no Heer extra lattice wires).
+
+**n lower bound:** \(\lceil V/16\rceil=5\); chosen **n=6** (topology pack > pure capacity bound).
+
+---
+
+## 4. Implications for later RTL (not this milestone)
+
+1. Physical lattice: `pe_graph_grow` with **N≤16** (Yosys-proven), M≥max edges among parts (measure before RTL).  
+2. Context banks: H9 / M39 — **N_CTX≥6** for this graph (or reload schedule with fewer banks if streaming).  
+3. Schedule FSM: iterate parts with 1-cycle switch between grow/merge stages (cite Helios); co-sim solids ≡ flat `pe_graph_grow` on same shots.  
+4. Do **not** claim circuit V=392 fit from \(n\ge\lceil392/16\rceil\) alone — re-run this script on circuit DEM first.
+
+**Follow-up:** Schedule / co-sim plan — `Docs/Helios_n_Schedule_M69`. PE coloring — `Docs/Helios_n_Coloring_M70` (M68 n=6 **not** Helios-colocation-legal).
+
+**Reproduce:** `PYTHONPATH=python python3 scripts/helios_n_partition_m68.py`
+
+---
+
+## 5. Out of scope
+
+- Helios-n SV schedule / partition hardware.  
+- Vivado; G4 board path.  
+- Claiming Helios µs/round or VU13P utilization.

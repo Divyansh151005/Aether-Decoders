@@ -1,0 +1,4 @@
+scheme,noise,d,rounds,V,E,n,N_phys_cap,part_sizes,max_part,cross_edges,cross_cut_nodes,uncovered,notes
+by_time_only,phenom,3,3,72,94,4,16,8;28;28;8,28,16,24,0,FAILS N_phys: mid layers can exceed cap
+intra_time_det_pack,phenom,3,3,72,94,6,16,8;14;14;14;14;8,14,24,24,0,CHOSEN: pack dets+bnds within time; max<=N_phys
+node_id_shards,phenom,3,3,72,94,5,16,16;16;16;16;8,16,58,72,0,rejected: ignores DEM topology

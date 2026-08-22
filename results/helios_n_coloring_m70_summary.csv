@@ -1,0 +1,4 @@
+scheme,ok,n_parts,max_part,colors_used,N_phys_cap,cross_edges,max_virtuals_per_phys,notes
+m68_intra_time_det_pack,0,,,,16,,,M68 pack; Helios colocation INFEASIBLE if transitive: part0 colocation collision under transitive Helios map
+det_comp_paired,1,16,7,7,16,34,16,CHOSEN: <=1 detector per DEM component per part
+one_det,1,24,4,4,16,34,24,fallback one detector per part
