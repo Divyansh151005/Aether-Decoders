@@ -1,0 +1,46 @@
+# M72 — Helios-n Stage D grow→peel co-sim vs M45 / `decode_cosim`
+
+**Status:** Stage D pass — Helios-n multiplexed grow (M71) + software peel matches `decode_cosim` **corrections** and **peel_ops** on phenom d=3 r=3 (V=72 E=94). Peel itself is **not** time-multiplexed (same as flat M45 peel after grow).  
+**Locked refs:** `Docs/Helios_n_Schedule_M69` §4 Stage D; M71 grow oracle; M45 grow→peel; M70 map.
+
+---
+
+## 1. Choice
+
+| Option | Verdict |
+| --- | --- |
+| **Helios-n grow + `peel_cosim_stats` vs `decode_cosim`** | **Chosen** — closes Stage D before SV schedule |
+| Multiplexed peel RTL / schedule | Reject — M69: peel after grow goldens; Stage D criterion is corr/peel_ops only |
+| SV `pe_graph_grow` schedule | Defer — oracle Stages C–D done |
+| Vivado / G4 | Defer (macOS / later) |
+
+---
+
+## 2. Protocol
+
+1. Load M70 schedule (same as M71).
+2. `neutralize_helios_n_pe` → solid forest.
+3. `peel_cosim_stats` (exported from `cycle_model`; same leaf walk as M45 RTL goldens).
+4. Pass iff `corrections` and `peel_ops` ≡ `decode_cosim` on matched Stim shots (seed=1, same as M44/M45 harness).
+
+**Not claimed:** Helios-n peel FSM; N_CTX≥16 bank RTL; Helios µs/round.
+
+---
+
+## 3. Evidence
+
+| Artifact | Content |
+| --- | --- |
+| `results/helios_n_decode_cosim_m72.csv` | 16 nontrivial shots, all `ok=1` |
+| `src/helios_n_pe.rs` | `decode_helios_n_pe`, `assert_helios_n_decode_matches_cosim` |
+| `src/cycle_model.rs` | `peel_cosim_stats` |
+| `scripts/helios_n_decode_cosim_m72.sh` | Stim phenom d=3 r=3 |
+
+**Reproduce:** `./scripts/helios_n_decode_cosim_m72.sh`
+
+---
+
+## 4. Next
+
+- SV schedule FSM + `pe_graph_grow` #(N≤16, N_CTX≥16), **or**
+- Vivado S0 on Linux / G4 S3 netlist sim.
