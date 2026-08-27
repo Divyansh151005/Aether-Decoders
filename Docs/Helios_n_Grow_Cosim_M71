@@ -1,0 +1,53 @@
+# M71 — Helios-n lattice grow co-sim vs flat M44 (software oracle)
+
+**Status:** Stage C pass — multiplexed grow on M70 `det_comp_paired` schedule matches flat `neutralize_helios_pe` solids + `growth_cycles` on phenom d=3 r=3 (V=72 E=94). **No** Stim Helios-n SV schedule RTL yet.  
+**Locked refs:** `Docs/Helios_n_Schedule_M69` §4 Stage C; `Docs/Helios_n_Coloring_M70`; Helios arXiv:2406.08491; M44 flat PE grow.
+
+---
+
+## 1. Choice
+
+| Option | Verdict |
+| --- | --- |
+| **Rust software-oracle multiplex + CSV** | **Chosen** — Progress / M69: match flat solids before SV schedule |
+| Full Stim Helios-n grow RTL | Reject — need oracle goldens first |
+| Vivado S0 / G4 | Defer (macOS / later) |
+
+---
+
+## 2. Algorithm (why ≡ flat)
+
+Flat Helios PE (`helios_pe`): each controller iter grows **all** edges in one parallel step (DSU roots fixed during grow), then solidify+union.
+
+Helios-n oracle (`helios_n_pe`):
+
+1. Load M70 `virtual_node → (phys_pe, part)`.
+2. Partition edges:
+   - **Induced:** both endpoints same `part` → grown when that part is scheduled.
+   - **Cross-cut:** different parts → assert same `phys_pe` (Helios colocation); grow once under `owner = min(part_u, part_v)`.
+3. Per controller iter: visit parts `0..n_parts-1`, grow owned edges with the same delta rule as flat; then global solidify+flood.
+
+Because grow does not mutate roots, part order does not change per-edge deltas → **solid set** and **growth_cycles** match flat.
+
+**Not claimed:** wall-clock ≡ Helios \(O(d^4)\); part-local quiescent without global OR; N_CTX bank RTL. Stage D peel closed in **M72**.
+
+---
+
+## 3. Evidence
+
+| Artifact | Content |
+| --- | --- |
+| `results/helios_n_grow_cosim_m71.csv` | 16 nontrivial shots, all `ok=1` |
+| `src/helios_n_pe.rs` | map load, schedule, `neutralize_helios_n_pe` |
+| `src/bin/helios_n_grow_cosim.rs` | DEM+shots harness |
+| `scripts/helios_n_grow_cosim_m71.sh` | Stim phenom d=3 r=3 seed=1 |
+
+Measured schedule on compiled phenom graph: **induced=48**, **cross=46**, **n_parts=16**, **n_phys=7**.
+
+**Reproduce:** `./scripts/helios_n_grow_cosim_m71.sh`
+
+---
+
+## 4. Next
+
+- Done Stage D (M72). Remaining: SV schedule / Vivado / G4.
