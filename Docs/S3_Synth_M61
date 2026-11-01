@@ -23,7 +23,7 @@
 | PE-mesh grow | N=16 M=18 IDX_W=8 | `Docs/Pe_Mesh_Stim` phenom d=3 r=1 |
 | Peel | MAX_N=16 MAX_E=18 MAX_DEG=16 | Multi-cycle M60; Stim TB overrides |
 
-`obs_egress` still has unpacked `obs_mask_mem` → **not** Yosys this milestone (Verilator SoT).
+`obs_egress` still has unpacked `obs_mask_mem` → **not** Yosys this milestone (Verilator SoT). **M75:** packed bus + per-edge XOR → Yosys OK (`Docs/G4_S3_Netlist_M75`).
 
 ---
 

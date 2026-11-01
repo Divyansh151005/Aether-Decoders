@@ -21,7 +21,7 @@
 
 | Artifact | Role |
 | --- | --- |
-| `aether_uf_obs_egress.sv` | XOR `obs_mask` on `corr_bits` → `obs_word`; `obs_valid`/`obs_ready`; status |
+| `aether_uf_obs_egress.sv` | XOR `obs_mask` on `corr_bits` → `obs_word`; `obs_valid`/`obs_ready`; status. **M75:** packed `obs_mask_bus`, one edge per clock (synthesizable) |
 | `gen_stim_rtl_vectors` | Emits `STIM_NUM_OBS`, `C*_OBS`, `obs_mask_mem` under `STIM_WITH_OBS` |
 | `tb_aether_uf_h10_obs_stim.sv` | Ring → grow→peel → obs; compare `C*_OBS` |
 | `scripts/h10_obs_stim_sim.sh` | phenom d=3 r=1; Icarus+Verilator |
