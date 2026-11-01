@@ -13,3 +13,4 @@ fpga/**/out/
 fpga/**/out_*/
 rtl/obj_dir/
 rtl/*.vcd
+.DS_Store
