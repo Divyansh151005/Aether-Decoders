@@ -1,0 +1,3 @@
+dut,label,n_phys,n_ctx,slots,board,part,tool,lut,ff,lutram_cells,cells,status,log
+aether_uf_helios_n_lattice,m70_map,7,16,12,VCU129,xcvu13p-fhgb2104-2-e,yosys_xcup,12576,384,180,26944,ok,fpga/scale/out_m74/helios_n_lattice_m70_map.yosys.log
+aether_uf_helios_n_lattice,nphys16_ub,16,16,16,VCU129,xcvu13p-fhgb2104-2-e,yosys_xcup,15626,512,528,40897,ok,fpga/scale/out_m74/helios_n_lattice_nphys16_ub.yosys.log
