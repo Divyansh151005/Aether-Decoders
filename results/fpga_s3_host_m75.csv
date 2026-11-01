@@ -1,0 +1,4 @@
+dut,label,board,part,tool,lut,ff,lutram,cells,status,stat
+aether_uf_s3_host_top,full_top_ring_grow_peel_obs,VCU129,xcvu13p-fhgb2104-2-e,yosys_xcup,154933,10461,0,259767,"ok_synth_1370s; netlist_sim_infeasible(verilator_frontend>30min,icarus_ivl_SIGKILL)",fpga/s3/out_m75/aether_uf_s3_host_top.stat.txt
+aether_uf_s3_host_top,shell_ring_seq_obs_core_blackbox,VCU129,xcvu13p-fhgb2104-2-e,yosys_xcup,778,177,0,3786,ok_synth_8s; netlist+RTLcore_sim_8of8_PASS,fpga/s3/out_m75/aether_uf_s3_host_shell.stat.txt
+aether_uf_obs_egress,MAX_E=128_standalone,VCU129,xcvu13p-fhgb2104-2-e,yosys_xcup,3645,111,0,13791,ok_synth_19s,fpga/s3/out_m75/aether_uf_obs_egress.stat.txt
