@@ -1,0 +1,3 @@
+circuit,p,decoder,seeds,shots,errors,ler,ler_lo,ler_hi,sources
+bicycle_bivariate_144_12_12_memory_Z,0.005,aether_relay,1;2,800,164,0.205,0.17846652606342525,0.23435301089792362,relay_bb_bakeoff_m27.csv;relay_bb_bakeoff_m29.csv
+bicycle_bivariate_144_12_12_memory_Z,0.005,bposd_cs10,1;2,800,230,0.2875,0.257211291258672,0.31981973112874035,relay_bb_bakeoff_m27.csv;relay_bb_bakeoff_m29.csv

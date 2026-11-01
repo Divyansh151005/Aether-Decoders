@@ -1,0 +1,5 @@
+scheme,ok,n_parts,max_part,colors_used,N_phys_cap,cross_edges,max_virtuals_per_phys,notes
+m68_intra_time_det_pack,0,,,,16,,,M68 pack; Helios colocation INFEASIBLE if transitive: part0 colocation collision under transitive Helios map
+det_comp_paired,0,,,,16,,,<=1 detector per DEM component per part: need more than 16 colors
+one_det,0,,,,16,,,fallback one detector per part: need more than 16 colors
+det_comp_paired_overflow,1,165,16,16,16,240,165,"CHOSEN: paired, parts capped at N_phys; overflow boundaries in extra parts"
