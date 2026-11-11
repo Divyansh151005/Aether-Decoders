@@ -39,6 +39,8 @@ Every claim in this repository is tied to a test, a co-simulation log, or a CSV 
 - [Design rules](#design-rules)
 - [Results](#results)
 - [Quickstart](#quickstart)
+- [Milestone journey](#milestone-journey)
+- [Repository layout](#repository-layout)
 
 ## Architecture
 
@@ -223,3 +225,55 @@ python3 scripts/relay_bb_bakeoff.py --help   # circuits live in testdata/bicycle
 
 > [!NOTE]
 > Write new measurements to new CSV names. Files in `results/` are cited by milestone and must not be overwritten.
+
+## Milestone journey
+
+```mermaid
+flowchart LR
+    P1["M1-M12: UF core, Stim, Sinter, threshold grids"] --> P2["M13-M29: Relay-BP and qLDPC bake-offs"]
+    P2 --> P3["M15-M28: cycle model, first RTL, Stim-scale co-sim, DPI"]
+    P3 --> P4["M30-M54: PE grid, OR-tree, PE mesh, H9/H10 I/O"]
+    P4 --> P5["M55-M66: FPGA prep and Yosys cliff"]
+    P5 --> P6["M67-M76: Helios-n multiplexing in RTL"]
+```
+
+| Phase | Milestones | Highlights |
+|---|---|---|
+| **Union-Find in software** | M1 to M12 | SoA UF core, peeling over F2, Stim DEM compiler, Sinter adapter, persistent decode process, the boundary-peel bug fix (M10), and a 1200-shot circuit grid with Wilson intervals |
+| **qLDPC decoding** | M13, M14, M21, M25, M27, M29 | Relay-BP from Müller et al., IBM bivariate-bicycle circuits, matched-shot bake-offs vs BP+OSD with seed replication |
+| **Bit-identical hardware model** | M15 to M28 | Cycle-accurate UF model, Helios-style PE, first SystemVerilog, peel FSM, Stim graphs up to V=392, Verilator DPI |
+| **PE grid architecture** | M30 to M54 | OR-tree completion detection, per-PE neighbor ports, edge-list mesh, LUTRAM dual context, syndrome ring and observable egress, abort-rate gates |
+| **FPGA prep** | M55 to M66 | Bring-up gates, S0 to S4 Yosys stages, multi-cycle peel, and the flat-mesh synthesis cliff past N=16 |
+| **Helios-n** | M67 to M76 | Partitioning, PE coloring under colocation, multiplexed grow and peel oracles, SystemVerilog schedule RTL (16/16), circuit V=392 map, synthesizable egress, Vivado S0 scripts |
+
+The complete table with the evidence for every milestone is in [`Docs/Progress`](Docs/Progress).
+
+## Repository layout
+
+```text
+Aether-Decoders/
+├── src/                 Rust library (aether_decoders)
+│   ├── graph.rs dsu.rs engine.rs peeling.rs weights.rs    Union-Find core
+│   ├── compiled.rs                                       Stim DEM -> UF graph
+│   ├── relay_bp.rs relay_compiled.rs                     Relay-BP
+│   ├── cycle_model.rs helios_pe.rs helios_n_pe.rs        cycle-accurate hardware models
+│   ├── blueprint_rtl.rs stim_rtl.rs                      RTL vector generation
+│   └── bin/             decode_shots, decode_relay_shots, gen_*_vectors, *_cosim tools
+├── dpi/                 aether_uf_dpi: Verilator DPI bridge (live Rust goldens)
+├── rtl/                 SystemVerilog modules, testbenches, generated vectors in rtl/gen/
+├── fpga/                Yosys scale runs, S0 Vivado Tcl/XDC
+├── python/              DEM helpers and the Sinter custom decoder
+├── scripts/             Stim harnesses, sweeps, bake-offs, sim and synth runners
+├── testdata/            IBM bivariate-bicycle Stim circuits
+├── results/             cited measurement CSVs (do not overwrite)
+├── tests/               integration tests
+└── Docs/                Progress log, hardware mapping, per-milestone research notes
+```
+
+| Binary | Purpose |
+|---|---|
+| `decode_shots` | Union-Find decode of 0/1 detector shots against a compiled DEM |
+| `decode_relay_shots` | Relay-BP decode on hypergraph DEMs |
+| `gen_rtl_vectors`, `gen_stim_rtl_vectors`, `gen_helios_n_rtl_vectors` | Golden vectors for RTL testbenches |
+| `helios_n_grow_cosim`, `helios_n_decode_cosim` | Helios-n multiplexed oracles vs the flat model |
+| `count_uf_decode_errors` | Abort and decode-error rate measurement |
