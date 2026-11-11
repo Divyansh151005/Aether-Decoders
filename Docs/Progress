@@ -850,3 +850,12 @@ PYTHONPATH=python python3 scripts/threshold_sweep.py --noise circuit --distances
 - Evidence: `results/helios_n_coloring_circuit_m76*.csv` (165 parts, 16 PEs, cross=374); `helios_n_grow_cosim_circuit_m76.csv` + `helios_n_decode_cosim_circuit_m76.csv` 16/16 ≡ flat / decode_cosim; `relay_bb_pooled_m76.csv` Relay 164/800 [0.1785, 0.2344] vs OSD 230/800 [0.2572, 0.3198].
 - Decision: keep flat multi-cycle peel after multiplexed grow; Helios parenthood-tree correction needs distributed merge + own oracle.
 - Not claimed: efficient circuit mapping; multiplexed peel RTL; seed-independent Relay superiority beyond p=0.005; fitted p_th.
+
+### 2026-11-11 — Repo housekeeping (no new milestone)
+
+- Committed M73–M76 work; commit dates follow file mtimes (2026-11-01 for results/vectors, 2026-11-11 for sources/docs). No backdating beyond mtimes.
+- Fix: `Docs/Analysis` and `Docs/Peeling_algo_example` were stored on GitHub as all-NUL blobs; restored from the working tree.
+- Added `LICENSE` (MIT, matches `Cargo.toml`) and `.github/workflows/ci.yml` (`cargo test --workspace --release` + `scripts/rtl_decode_sim.sh` on Icarus, then `git diff --exit-code rtl/gen`).
+- README rewritten from `Docs/Progress` + cited CSVs only (M12 Wilson rows, Relay counts with overlap/disjoint verdicts, Yosys-only resource numbers).
+- Evidence: `cargo test --release` 17+11 PASS; `scripts/rtl_decode_sim.sh` 8/8 PASS, regenerated `rtl/gen` unchanged.
+- Next: unchanged (Vivado S0 on a Linux host).
