@@ -26,6 +26,7 @@ module tb_aether_uf_h10_obs_stim;
     reg [MAX_N-1:0] syn_vec = 0, bnd_vec = 0;
     reg [IDX_W*MAX_E-1:0] eu_bus = 0, ev_bus = 0;
     reg [16*MAX_E-1:0] cap_bus = 0;
+    reg [64*MAX_E-1:0] obs_mask_bus = 0;
 
     wire done_gm, done_peel, done_obs;
     wire [31:0] cycles, peel_ops;
@@ -99,7 +100,7 @@ module tb_aether_uf_h10_obs_stim;
         .clk(clk), .rst_n(rst_n), .start(start_obs),
         .num_edges(num_edges),
         .corr_bits(corr_bits),
-        .obs_mask_mem(obs_mask_mem),
+        .obs_mask_bus(obs_mask_bus),
         .peel_ops_in(peel_ops),
         .status_timeout_in(1'b0),
         .obs_ready(obs_ready),
@@ -132,6 +133,7 @@ module tb_aether_uf_h10_obs_stim;
                 eu_bus[k*IDX_W +: IDX_W] = eu_mem[k][IDX_W-1:0];
                 ev_bus[k*IDX_W +: IDX_W] = ev_mem[k][IDX_W-1:0];
                 cap_bus[k*16 +: 16] = cap_mem[k];
+                obs_mask_bus[k*64 +: 64] = obs_mask_mem[k];
                 eu_peel[k] = eu_mem[k][IDX_W-1:0];
                 ev_peel[k] = ev_mem[k][IDX_W-1:0];
             end

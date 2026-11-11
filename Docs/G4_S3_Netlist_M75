@@ -1,0 +1,33 @@
+# G4 S3 netlist sim, synthesizable obs egress, Vivado S0 prep (M75)
+
+**Status:** Done (scoped) — S3 host path RTL + host-shell `synth_xilinx` netlist sim 8/8 vs Stim goldens; `aether_uf_obs_egress` synthesizable; Vivado S0 Tcl + XDC ready but **not run** (Vivado unavailable on macOS).
+**Locked refs:** `Docs/Fpga_Bringup_Prep` G4 ("H10 host path on board or S3 netlist sim (syndrome in / obs out)"); `Docs/Host_IO_H10`; `Docs/H10_Obs_Egress` (M53); `Docs/S3_Combined_M64`; Helios arXiv:2406.08491 §Implementation choice (100 MHz).
+
+---
+
+## 1. Synthesizable obs egress
+
+`rtl/aether_uf_obs_egress.sv`: packed `obs_mask_bus[64*MAX_E-1:0]` (was an unpacked-array port) and one correction edge per clock in `S_CALC` (was a single-cycle MAX_E-way XOR loop). Same ready/valid + status contract; latency = num_edges clocks.
+
+- `scripts/h10_obs_stim_sim.sh`: 4/4 Icarus + Verilator (TB packs `obs_mask_mem` into the bus).
+- Yosys MAX_E=128: 3 645 LUT, 111 FF, ~19 s (`results/fpga_s3_host_m75.csv`). Supersedes the M61 note "obs_egress … not Yosys".
+
+## 2. G4: S3 host path
+
+`rtl/aether_uf_s3_host_top.sv` = `aether_uf_syndrome_ring` (W=16 D=2) → sequencer → `aether_uf_pe_mesh_decode_s3` (grow N=16 + peel) → `aether_uf_obs_egress` (MAX_E=18). Graph tables are ports (ROM-class). `rtl/tb_aether_uf_s3_host.sv` pushes Stim phenom d=3 r=1 frames (seed=1, 8 nontrivial shots, goldens from `decode_cosim` + `decode_observables`) and checks obs word, cycles, peel_ops and corrections.
+
+| Run | Result |
+|---|---|
+| RTL (Icarus) | `ALL 8 S3 HOST-PATH CASES PASS` |
+| Host-shell netlist (ring + sequencer + obs as Xilinx cells via Yosys `cells_sim.v`) + RTL decode core | `ALL 8 S3 HOST-PATH CASES PASS` (~7 s) |
+| Full-top netlist | Yosys OK (1 370 s; 154 933 LUT, 10 461 FF, 259 767 cells) but **not simulable here**: Verilator frontend > 30 min (killed), Icarus `ivl` SIGKILL |
+
+Script: `scripts/g4_s3_netlist_m75.sh` (~25 s). Vectors: `rtl/gen/s3_host_cases.sv` / `s3_host_run.sv` (generator's own `stim_run.sv` kept in a temp dir).
+
+**Trade-off:** the decode core stays RTL in the netlist sim. It is already bit-identical to `decode_cosim` at RTL (M45/M64) and Yosys-synthesizable (M64), but its gate-level behaviour is unverified. Options for a full gate-level G4: Vivado post-synth functional sim (xsim) on Linux, or a smaller core (Helios-n lattice, M74) once its merge is synthesizable.
+
+## 3. Vivado S0 prep
+
+- `fpga/s0/s0_clocks.xdc`: `create_clock -period 10.000 -name clk [get_ports clk]` (100 MHz, Helios §Implementation choice; Helios Table 1 d=3 fmax 260/195 MHz is not an Aether target).
+- `fpga/s0/vivado_s0.tcl`: OOC `synth_design -mode out_of_context` → `opt_design` → `place_design` → `route_design`; utilization + timing reports and setup WNS per DUT (OR-tree, syndrome ring, obs egress, Helios-n lattice N_PHYS=16).
+- **Blocked:** no Vivado on this macOS host (`which vivado` empty, no Docker). Run on Linux and file numbers into a new `results/` CSV.
