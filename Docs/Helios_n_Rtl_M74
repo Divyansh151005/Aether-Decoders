@@ -1,0 +1,51 @@
+# Helios-n schedule RTL (M74)
+
+**Status:** Done — SV time-multiplexed grow on the M70 map, co-simmed bit-identical vs the M71/M72 oracle (16/16, Verilator + Icarus); Yosys physical-lattice-only synth (M67 step 4).
+**Locked refs:** Maurya et al. Helios arXiv:2406.08491 (multi-context PEs, 1-cycle context switch); `Docs/Helios_n_Multiplex_M67`; `Docs/Helios_n_Schedule_M69`; M70 map `results/helios_n_coloring_m70.csv`; oracle `src/helios_n_pe.rs` (M71/M72); M66 flat cliff `results/fpga_grow_scale_m66.csv`.
+
+---
+
+## 1. What was built
+
+| File | Role |
+|------|------|
+| `rtl/aether_uf_helios_n_lattice.sv` | Physical lattice: N_PHYS PEs × N_CTX context bank `{cluster_active, cid}` (1 write port), per-slot N_CTX-deep growth bank, FF `touched`/`solid` masks (1-cycle clear) |
+| `rtl/aether_uf_helios_n_grow.sv` | FSM + central ordered union-by-size merge (virtual SoA, software tie rule) + writeback to the lattice |
+| `rtl/tb_aether_uf_helios_n_decode.sv` | grow → `aether_uf_peel`; checks iters, solid bits, correction, peel_ops per case |
+| `src/bin/gen_helios_n_rtl_vectors.rs` | Compiles DEM + M70 coloring → slot / writeback tables; **gates every case** with `assert_helios_n_matches_flat` and `assert_helios_n_decode_matches_cosim` before emitting `rtl/gen/helios_n_cases.sv` |
+| `scripts/helios_n_rtl_m74_sim.sh` | cargo test + Stim phenom d=3 r=3 (seed=1, 24 shots → 16 nontrivial) + Verilator (TB 16×16, exercises table remap); `HN_ICARUS=1` adds Icarus at the M70 config (~30 min) |
+| `fpga/scale/run_yosys_helios_n_lattice_m74.sh` | Lattice-only Yosys `synth_xilinx -family xcup` → `results/fpga_helios_n_lattice_m74.csv` |
+
+Table layout: slot row `k*SLOTS+s` holds `{edge, (pu,cu), (pv,cv), cap}` for part k; writeback row `k*N_PHYS+p` holds the virtual node that context k of PE p represents. The TB remaps generator rows (`HN_SLOTS`, `HN_NPHYS`) onto DUT parameters (`SLOTS`, `N_PHYS`).
+
+## 2. Schedule (one growth iteration)
+
+`WB` (n_parts clocks: context k of every PE ← `{fact, froot}`) → `CHECK` (1: done if no active root) → `GROW` (n_parts clocks: part k on the lattice; per slot `delta = act_u&!same + act_v&!same`, solidify when `growth+delta >= cap`) → `MERGE` (1: ordered unions of newly solid edges, then `froot`/`fact`).
+
+**clk per iteration = 2·n_parts + 2 = 34** for the M70 map; total = 34·iters + 18 (INIT + first WB + final CHECK). Measured: `total_clk=3425380` over 16 cases; iters identical to flat `growth_cycles` (M71).
+
+## 3. Results
+
+| Check | Result |
+|-------|--------|
+| Verilator 5.050 | `ALL 16 HELIOS-N DECODE CASES PASS (V=72 E=94 parts=16 phys=7 slots=12) total_clk=3425380` (~3 s sim) |
+| Icarus 13.0 | same 16/16, same total_clk — TB at the exact M70 config (`-DHN_TB_NPHYS=7 -DHN_TB_SLOTS=12`), ~30 min (~1.4k clk/s; the 16×16 per-PE read fan-out is ~20× slower in Icarus) |
+| Oracle gate | generator re-asserts M71 (≡ flat) and M72 (≡ decode_cosim) for every emitted case |
+
+Yosys (VCU129 `xcvu13p-fhgb2104-2-e`, `results/fpga_helios_n_lattice_m74.csv`):
+
+| Config | LUT | FF | LUTRAM cells | Runtime |
+|--------|-----|----|--------------|---------|
+| M70 map N_PHYS=7 N_CTX=16 SLOTS=12 | 12 576 | 384 | 180 `RAM32M16` | ~60 s |
+| Upper bound N_PHYS=16 N_CTX=16 SLOTS=16 | 15 626 | 512 | 528 | ~80 s |
+| cite M61 flat N=16 grow | 138 502 | 775 | 0 | ~330 s |
+| cite M66 flat N=24 / N=32 | — | — | — | ABC timeout 1800 / 3600 s |
+
+Context and growth banks infer LUTRAM (replicated per read port); FFs are only the `touched`/`solid` masks (2·NS). Most LUTs are the per-context schedule-table muxes (tables are module ports here; in a device they would be per-context ROM/LUTRAM).
+
+## 4. Trade-offs / limits (record, do not over-claim)
+
+- **Central merge kept** (single-cycle behavioral ordered union in `aether_uf_helios_n_grow`) so union order and tie rule stay bit-identical to `DecoderGraph::union`. It is **not** in the synth scope and is not a scalable netlist (V·depth find loops). Distributed Helios-style cid flooding was deferred: it changes merge order and would need its own oracle.
+- **Latency cost:** 34× clock cycles per growth iteration vs flat M44 (1 cycle/iteration); this is the area↔latency trade of multiplexing, not a regression in decode output.
+- Peel stays the existing flat `aether_uf_peel` (MAX_DEG=16) on the virtual graph; a multiplexed peel schedule is a separate decision (see Progress Next).
+- Scope: phenom d=3 r=3 only. Circuit V=392 needs a re-partition (M67 step 5; n ≥ ⌈392/16⌉ is a lower bound only).

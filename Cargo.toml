@@ -41,6 +41,10 @@ path = "src/bin/helios_n_grow_cosim.rs"
 name = "helios_n_decode_cosim"
 path = "src/bin/helios_n_decode_cosim.rs"
 
+[[bin]]
+name = "gen_helios_n_rtl_vectors"
+path = "src/bin/gen_helios_n_rtl_vectors.rs"
+
 [dependencies]
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
