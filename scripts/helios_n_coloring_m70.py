@@ -29,15 +29,20 @@ def main() -> None:
     ap.add_argument("--p", type=float, default=0.003)
     ap.add_argument("--n-phys", type=int, default=16)
     ap.add_argument("--out-dir", type=Path, default=ROOT / "results")
+    ap.add_argument("--noise", choices=["phenom", "circuit"], default="phenom")
+    ap.add_argument("--prefix", default="helios_n_coloring_m70")
     args = ap.parse_args()
     N_PHYS = args.n_phys
 
+    # circuit: same noise families as M46/M47 (`pe_mesh_stim_circuit_sim.sh`), all at p.
     circ = stim.Circuit.generated(
         "surface_code:rotated_memory_z",
         distance=args.distance,
         rounds=args.rounds,
+        after_clifford_depolarization=args.p if args.noise == "circuit" else 0.0,
         before_round_data_depolarization=args.p,
         before_measure_flip_probability=args.p,
+        after_reset_flip_probability=args.p if args.noise == "circuit" else 0.0,
     )
     dem = circ.detector_error_model(decompose_errors=True)
     payload = dem_to_payload(dem)
@@ -91,6 +96,29 @@ def main() -> None:
             for det in dets:
                 nodes.update(det_to_bnds[det])
             parts.append(sorted(nodes))
+        return parts
+
+    def parts_paired_overflow() -> list[list[int]]:
+        """det_comp_paired, but cap each part at N_PHYS nodes; overflow boundaries go to
+        extra parts. An overflow edge (det, b) is cross-cut ⇒ b colocates with det's
+        class (Helios), so an extra part holds ≤1 overflow boundary per det component."""
+        L = max(len(c) for c in det_comps)
+        comp_of = {d: ci for ci, c in enumerate(det_comps) for d in c}
+        parts: list[list[int]] = []
+        overflow: dict[int, list[int]] = defaultdict(list)
+        for i in range(L):
+            dets = [c[i] for c in det_comps if i < len(c)]
+            nodes: list[int] = list(dets)
+            for det in dets:
+                for b in det_to_bnds[det]:
+                    if len(nodes) < N_PHYS:
+                        nodes.append(b)
+                    else:
+                        overflow[comp_of[det]].append(b)
+            parts.append(sorted(nodes))
+        n_extra = max((len(v) for v in overflow.values()), default=0)
+        for j in range(n_extra):
+            parts.append(sorted(v[j] for v in overflow.values() if j < len(v)))
         return parts
 
     def parts_one_det() -> list[list[int]]:
@@ -223,11 +251,17 @@ def main() -> None:
     r_pair = try_color(parts_paired(), "det_comp_paired")
     r_one = try_color(parts_one_det(), "one_det")
     chosen = r_pair if r_pair["ok"] else r_one
+    r_over = None
     if not chosen["ok"]:
+        r_over = try_color(parts_paired_overflow(), "det_comp_paired_overflow")
+        chosen = r_over
+    if not chosen["ok"]:
+        for r in (r_m68, r_pair, r_one, r_over):
+            print(f"{r['label']}: {r['err']}", file=sys.stderr)
         raise SystemExit("no feasible coloring")
 
     args.out_dir.mkdir(parents=True, exist_ok=True)
-    with (args.out_dir / "helios_n_coloring_m70_summary.csv").open("w", newline="") as f:
+    with (args.out_dir / f"{args.prefix}_summary.csv").open("w", newline="") as f:
         w = csv.writer(f)
         w.writerow(
             [
@@ -247,6 +281,9 @@ def main() -> None:
             (r_pair, "CHOSEN: <=1 detector per DEM component per part"),
             (r_one, "fallback one detector per part"),
         ]
+        if r_over is not None:
+            rows[1] = (r_pair, "<=1 detector per DEM component per part")
+            rows.append((r_over, "CHOSEN: paired, parts capped at N_phys; overflow boundaries in extra parts"))
         for r, note in rows:
             if r["ok"]:
                 w.writerow(
@@ -273,7 +310,7 @@ def main() -> None:
     cross = chosen["cross"]
     cross_nodes = {x for uv in cross for x in uv}
 
-    with (args.out_dir / "helios_n_coloring_m70.csv").open("w", newline="") as f:
+    with (args.out_dir / f"{args.prefix}.csv").open("w", newline="") as f:
         w = csv.writer(f)
         w.writerow(
             [
@@ -297,7 +334,7 @@ def main() -> None:
                 ]
             )
 
-    with (args.out_dir / "helios_n_coloring_m70_phys.csv").open("w", newline="") as f:
+    with (args.out_dir / f"{args.prefix}_phys.csv").open("w", newline="") as f:
         w = csv.writer(f)
         w.writerow(["phys_pe", "num_virtuals", "virtual_nodes", "parts_touched"])
         for p_id in range(chosen["n_colors"]):
@@ -311,7 +348,7 @@ def main() -> None:
                 ]
             )
 
-    with (args.out_dir / "helios_n_coloring_m70_parts.csv").open("w", newline="") as f:
+    with (args.out_dir / f"{args.prefix}_parts.csv").open("w", newline="") as f:
         w = csv.writer(f)
         w.writerow(["part", "nodes", "size", "phys_slots"])
         for pi, S in enumerate(parts):
@@ -320,7 +357,7 @@ def main() -> None:
                 [pi, ";".join(map(str, S)), len(S), ";".join(map(str, slots))]
             )
 
-    with (args.out_dir / "helios_n_coloring_m70_crosscuts.csv").open(
+    with (args.out_dir / f"{args.prefix}_crosscuts.csv").open(
         "w", newline=""
     ) as f:
         w = csv.writer(f)
@@ -331,7 +368,7 @@ def main() -> None:
     print(
         f"CHOSEN {chosen['label']} n_parts={chosen['n_parts']} "
         f"colors={chosen['n_colors']} max_part={chosen['max_part']} "
-        f"(m68_feasible={r_m68['ok']}) -> {args.out_dir}/helios_n_coloring_m70.csv"
+        f"(m68_feasible={r_m68['ok']}) -> {args.out_dir}/{args.prefix}.csv"
     )
 
 

@@ -1,0 +1,60 @@
+# Helios-n circuit re-partition, peel schedule decision, pooled Relay seeds (M76)
+
+**Status:** Done — circuit d=3 r=3 (V=392 E=556) Helios-n map measured and oracle-verified; multiplexed-peel decision recorded; M27+M29 pooled.
+**Locked refs:** M67 step 5 (`Docs/Helios_n_Multiplex_M67`); M70 method (`Docs/Helios_n_Coloring_M70`); M71/M72 oracle (`src/helios_n_pe.rs`); M46/M47 circuit noise (`scripts/pe_mesh_stim_circuit_sim.sh`); Helios arXiv:2406.08491 §III-D-a; M27/M29 bake-offs.
+
+---
+
+## 1. Circuit V=392 re-partition (M67 step 5)
+
+Graph (Stim `rotated_memory_z` d=3 r=3, all four noise families at p=0.02, `dem_to_payload` `^`-split):
+
+| | phenom (M70) | circuit (M76) |
+|---|---|---|
+| detectors D | 24 | 24 |
+| degree-1 pieces (unique virtual boundaries) | 48 | **368** |
+| V | 72 | 392 |
+| max boundaries on one detector | 3 | **35** |
+| detector components | 2 | 2 |
+
+**Why M70 schemes fail on circuit:** both `det_comp_paired` and `one_det` put every boundary in its detector's part, so the worst part needs ≥ 1 + 35 = 36 distinct physical PEs > N_PHYS=16 (`need more than 16 colors`). Merging parallel boundary pieces would change edge weights/goldens and is close to the rejected shared-boundary shortcut (Progress mistakes) — **not done**.
+
+**Feasible scheme (new, fallback only):** `det_comp_paired_overflow` — paired parts capped at N_PHYS nodes; overflow boundaries go to extra parts. An overflow edge (det, b) is cross-cut, so b colocates with det's class (Helios rule), hence each extra part holds ≤1 overflow boundary per detector component. Evaluated only when the M70 schemes fail, so phenom outputs stay byte-identical (`cmp` vs cited `helios_n_coloring_m70*.csv`).
+
+| Result | Value |
+|---|---|
+| n_parts | **165** (lower bound ⌈392/16⌉ = 25) |
+| phys colors | 16 |
+| max part size | 16 |
+| induced / cross edges | 182 / 374 |
+| max virtual nodes on one PE | 165 |
+| M71 oracle (grow ≡ flat) | **16/16** (`results/helios_n_grow_cosim_circuit_m76.csv`) |
+| M72 oracle (grow→peel ≡ decode_cosim) | **16/16** (`results/helios_n_decode_cosim_circuit_m76.csv`) |
+
+Map: `results/helios_n_coloring_circuit_m76*.csv` via `scripts/helios_n_coloring_m70.py --noise circuit --p 0.02 --prefix helios_n_coloring_circuit_m76`.
+
+**Interpretation:** legal under transitive Helios colocation, but the transitive closure piles each detector component plus its overflow boundaries onto one PE (165 contexts) — the M74 schedule would be 2·165+2 = 332 clk per growth iteration. Not an efficient mapping; it is the measured cost of (unique boundaries × transitive colocation). Better options need a decision: (a) non-transitive cross-cut wiring (Heer-style ports — reject without a paper per M67), (b) boundary-piece merging with re-validated goldens, (c) larger N_PHYS.
+
+## 2. Multiplexed peel schedule — decision
+
+| Option | Verdict |
+|---|---|
+| Keep flat multi-cycle `aether_uf_peel` on the virtual graph after multiplexed grow (M72/M74 path) | **Chosen** — already bit-identical to `decode_cosim` (M72 phenom + M76 circuit); locked peel rules (frozen `syndrome[]`, M10 boundary root) unchanged |
+| Helios parenthood-tree correction (§III-D-a: "already has a spanning tree based on the parenthood relation") | Rejected for now — requires distributed merge (deferred in M74) and yields a different spanning forest than Aether peel ⇒ needs its own oracle |
+| Context-multiplexed peel over parts | Deferred — no paper reference for peel multiplexing; peel is not the Yosys cliff (M60/M63 softened peel synthesizes at N16) |
+
+## 3. Pooled Relay seeds (M27 + M29)
+
+`scripts/pool_relay_seeds.py` → `results/relay_bb_pooled_m76.csv` (gross [[144,12,12]] p=0.005, 2×400 shots, identical hyperparameters, independent Stim sampler seeds 1 and 2):
+
+| Decoder | Errors / shots | LER | Wilson 95% |
+|---|---|---|---|
+| Relay (Müller) | 164 / 800 | 0.205 | [0.1785, 0.2344] |
+| BP+OSD-CS10 | 230 / 800 | 0.2875 | [0.2572, 0.3198] |
+
+Pooled intervals are **disjoint at this one p**. Caveats: (i) BP+OSD has exactly 115/400 in both seeds — the script samples with `seed` for both decoders, so this is likely coincidence, but re-run M29 OSD before leaning on the pooled claim; (ii) one p only, not an all-p or 10× claim.
+
+## 4. Not done
+
+- Fitted circuit p_th: needs a new matched-shot sweep with p≤0.002 points well above 0–1 errors (M12 note) — hours of compute; deferred.
+- Helios-n RTL on the circuit map (332 clk/iter, N_CTX=165) — not built.
