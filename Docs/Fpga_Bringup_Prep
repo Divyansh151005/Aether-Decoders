@@ -1,6 +1,6 @@
 # FPGA bring-up prep checklist (M55)
 
-**Status:** Prep + S0–S3 Yosys + cliff + Helios-n through **M70** coloring. No Vivado bitstream / Stim Helios-n grow RTL.  
+**Status:** Prep + S0–S3 Yosys + cliff + Helios-n through **M76** (M74 SV schedule RTL ≡ oracle + lattice Yosys; M75 scoped G4 + Vivado Tcl/XDC; M76 circuit map). No Vivado bitstream (no Vivado on host).  
 **Locked refs:** Helios; through `Docs/Helios_n_Coloring_M70`; `results/helios_n_coloring_m70.csv`.
 
 ---
@@ -54,7 +54,7 @@
 | Stim + `gen_stim_rtl_vectors` | Goldens | Done |
 | Icarus / Verilator | RTL co-sim | Done (M18–M53) |
 | `cargo test` / release `decode_shots` | Software gate | Done |
-| Vivado (or vendor equiv.) | Synth / P&R / bitstream | **Stub** `fpga/s0/vivado_s0.tcl` — install when board available |
+| Vivado (or vendor equiv.) | Synth / P&R / bitstream | `fpga/s0/vivado_s0.tcl` + `s0_clocks.xdc` (M75: OOC synth→route, 100 MHz) — not run; needs Linux host |
 | Yosys `synth_xilinx -family xcup` | S0 smoke | **M56** `results/fpga_s0_synth_m56.csv` — not Helios-class timing |
 
 Long jobs: keep Progress ETA + ≥15 s heartbeats for synth as for bake-offs.
@@ -72,7 +72,7 @@ Do **not** jump to full Stim V=50k PE grid.
 | **S2** | Helios-2 micro grow→peel (H9) | **M58 smoke:** Yosys H9+Helios2 in `results/fpga_s2_synth_m58.csv` (BRAM=0); Verilator Helios-2 decode. Peel not Yosys. |
 | **S3** | Phenom d=3 r=1 PE-mesh + H10 ring/obs (V=16) | **M61** ring+grow; **M63** peel; **M64** combined **153509 LUT** (`fpga_s3_combined_m64.csv`) — S3 Yosys closed; obs not Yosys. |
 | **S4** | Circuit d=3 r=3 (V=392) | **M65:** grow-only Yosys **timeout 1800 s** (`fpga_s4_grow_m65.csv`) — flat PE cliff; no LUT. Peel/combined not attempted. |
-| **S5** | Helios-n / larger d | **M67–M70:** notes, partition, schedule, **coloring** (7 phys / 16 parts); lattice grow co-sim open |
+| **S5** | Helios-n / larger d | **M67–M70:** notes, partition, schedule, **coloring** (7 phys / 16 parts); **M71/M72** software grow + peel co-sim ≡ flat; **M74** SV schedule RTL ≡ oracle + lattice Yosys; **M76** circuit V=392 map (165 parts) ≡ oracle |
 
 **Pipe OR-tree into Stim PE-mesh:** only when cycle goldens account for `+depth` (Pe_Grid_Prep note).
 
@@ -85,7 +85,7 @@ Do **not** jump to full Stim V=50k PE grid.
 | G1 | Part + board named in Progress — **PASS (M56):** VCU129 / `xcvu13p-fhgb2104-2-e` |
 | G2 | Vivado (or equiv.) project path documented — **PASS (M56):** `fpga/s0/` (+ Vivado stub); Vivado binary still missing |
 | G3 | S0 synth report exists with LUT/FF/BRAM/URAM counts — **PASS smoke (M56 Yosys)**; Vivado util.rpt still open |
-| G4 | H10 host path on board or S3 netlist sim (syndrome in / obs out) |
+| G4 | H10 host path on board or S3 netlist sim (syndrome in / obs out) — **M75 scoped PASS:** host-shell netlist + RTL core 8/8 (`Docs/G4_S3_Netlist_M75`); full gate-level core open |
 | G5 | H11: keep MWPM fallback **off** until board timeout rate measured (M51/M54 are software aborts only) |
 | G6 | No Overview “dual-port BRAM for PE clustering” / “4-neighbor only” regressions |
 

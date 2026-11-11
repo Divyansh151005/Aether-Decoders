@@ -1,7 +1,7 @@
 # Aether Union-Find — Hardware Mapping Notes
 
-**Status:** M15–M69 + **M70** PE coloring (`Docs/Helios_n_Coloring_M70`). No Vivado bitstream / no Stim Helios-n grow RTL.  
-**Last updated:** 2026-08-26 (M70 coloring)  
+**Status:** M15–M70 + **M71/M72** Helios-n software grow / grow→peel co-sim ≡ flat (`Docs/Helios_n_Grow_Cosim_M71`, `Docs/Helios_n_Decode_Cosim_M72`) + **M74** Helios-n SV schedule RTL ≡ oracle 16/16 and lattice-only Yosys (`Docs/Helios_n_Rtl_M74`) + **M75** scoped G4 netlist sim / synthesizable obs egress (`Docs/G4_S3_Netlist_M75`) + **M76** circuit V=392 Helios-n map ≡ oracle (`Docs/Helios_n_Circuit_M76`). No Vivado bitstream.  
+**Last updated:** 2026-11-01 (M74–M76)  
 **Software source of truth:** `src/{types,graph,dsu,engine,peeling,compiled}.rs`  
 **Measured graph sizes:** `results/uf_graph_sizes.csv` (from `scripts/uf_graph_sizes.py`)
 
@@ -135,8 +135,8 @@ Do not start RTL until each checkbox has a co-sim plan against `cargo test` + St
 | H6 | Syndrome bank | Read-only after ingest; peel FSM reads `syndrome`, writes correction bits / `obs_mask` XOR. **M38–M47:** PE-mesh solids → peel through Stim circuit d=3 r=3. |
 | H7 | Peel root | If any boundary in component → that vertex is root; enqueue other degree-1 nodes (M10). **M38:** two_boundary_star on PE-mesh. **M41:** Helios-2 boundary peel after multiplex. |
 | H8 | Controller | Tree OR-reduce of `busy` and `any_active`; single-clock domain. **M30:** comb OR-tree. **M31–M32:** wired into Blueprint grow/peel. **M33:** pipelined OR-tree `pipe_depth≡clog2(N)`. |
-| H9 | Context switch | LUTRAM; **M39–M41** micro; **M67–M69** plan; **M70:** phys map 7 colors / 16 parts (`helios_n_coloring_m70.csv`); Helios schedule N_CTX≥16. |
-| H10 | Host I/O | BRAM/URAM ring + obs egress; PCIe/UDP later (Phase 3). **M48–M53:** notes, phenom/circuit ring, **obs stub** (`aether_uf_obs_egress`). |
+| H9 | Context switch | LUTRAM; **M39–M41** micro; **M67–M69** plan; **M70:** phys map 7 colors / 16 parts (`helios_n_coloring_m70.csv`); Helios schedule N_CTX≥16. **M71/M72:** software multiplexed grow / grow→peel ≡ flat 16/16. Yosys maps `pe_lutram_ctx` to FFs (no RAM32M/RAM64M). **M74:** `aether_uf_helios_n_lattice` (no-reset banks + FF clear masks) **does** infer LUTRAM in Yosys: N_PHYS=7/N_CTX=16 → 180 RAM32M16, 12 576 LUT, 384 FF (`fpga_helios_n_lattice_m74.csv`); central merge stays behavioral (not in synth scope). **M76:** circuit d=3 r=3 map needs 165 parts on 16 PEs (unique boundaries × transitive colocation) ≡ oracle 16/16. |
+| H10 | Host I/O | BRAM/URAM ring + obs egress; PCIe/UDP later (Phase 3). **M48–M53:** notes, phenom/circuit ring, **obs stub** (`aether_uf_obs_egress`). **M75:** obs egress synthesizable (3 645 LUT @ MAX_E=128); S3 host shell netlist + RTL core 8/8. |
 | H11 | Fallback | Unsolved / timeout → CPU MWPM; gate on measured rates. **M49:** notes. **M51/M54:** abort grids 0/400 on measured cells (`uf_decode_error_m51.csv`, `uf_decode_error_m54.csv`). |
 | H12 | Co-sim | **M16–M28:** file Stim/Blueprint + DPI Blueprint + **DPI Stim** (circuit d=3 r=3 V=392 E=556). **M31–M32:** Blueprint grow/peel with H8 OR-tree ctrl (monolithic Stim path unchanged). |
 
@@ -198,3 +198,7 @@ Until Vivado S0 util/timing (or Progress override) before full-chip:
 1. Research note `Docs/Rtl_Scale_Research` (adopt per-edge SoA; reject packed-mask widen as primary).
 2. Phenom d=3 r=3: V=72 E=94 — Icarus 4/4 + 48-shot software cosim.
 3. Blueprint still packs bits only in TB for small-E integer goldens.
+
+### M23–M76
+
+Per-milestone validation (commands, pass counts, CSVs) is recorded in `Docs/Progress` session notes and the per-milestone docs; not duplicated here.

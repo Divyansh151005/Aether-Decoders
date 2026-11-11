@@ -85,7 +85,7 @@ Validated Stim PE-mesh decode today: circuit **d=3 r=3** \(V=392\) \(E=556\) (M4
 | Stage | Transport | When |
 | --- | --- | --- |
 | **Now (sim)** | File / DPI / TB `syn_mem` load (M20–M47) | Done for co-sim |
-| **H10 RTL (M50)** | Depth-2 syndrome ring + PE-mesh Stim decode TB | Done phenom d=3 r=1; circuit scale next |
+| **H10 RTL (M50)** | Depth-2 syndrome ring + PE-mesh Stim decode TB | Done phenom d=3 r=1; circuit d=3 r=3 done M52; obs stub M53 |
 | **Phase 3** | PCIe or UDP into BRAM; C/gRPC to Qblox/ZI (Overview) | After FPGA bring-up |
 | **H11** | Timeout / unsolved → CPU MWPM over same egress path | After measured timeout rate |
 

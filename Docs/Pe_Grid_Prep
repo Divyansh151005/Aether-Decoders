@@ -52,9 +52,10 @@ Aether H8 (`Docs/Hardware_Mapping`): tree OR-reduce of **`busy`** and **`any_act
 
 ---
 
-## 5. Next PE-grid steps (after M70)
+## 5. Next PE-grid steps (after M72)
 
-**M30–M70 done:** schedule plan + **feasible PE coloring** (M68 n=6 not Helios-legal).
+**M30–M72 done:** schedule plan + **feasible PE coloring** (M68 n=6 not Helios-legal) + software Helios-n grow (M71) and grow→peel (M72) co-sim ≡ flat.
 
-1. Lattice grow co-sim vs M44 using M70 map, **or** Vivado / G4.
-2. Do not schedule Helios-n on M68 parts without recolor (M70).
+1. ~~Lattice grow co-sim vs M44 using M70 map.~~ **Done M71/M72** (software oracle).
+2. SV Helios-n schedule RTL vs M71/M72 oracle, **or** Vivado / G4 — see `Docs/Progress` Next.
+3. Do not schedule Helios-n on M68 parts without recolor (M70).

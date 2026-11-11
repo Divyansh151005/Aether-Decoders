@@ -65,8 +65,8 @@ Do **not** claim Aether matches Helios ns/round until a named part + bitstream +
 
 1. ~~Docs mapper: partition Stim phenom d=3 r=3 (V=72) into n slices with N_phys≤16; list cross-cut PE IDs.~~ **Done M68** (`Docs/Helios_n_Partition_M68`).  
 2. ~~RTL: Helios-n schedule FSM on existing H9 + micro lattice (N_CTX≥6 for M68).~~ **Plan + N_CTX=6 smoke M69**; Stim lattice grow still open.  
-3. Co-sim: multiplexed grow ≡ `helios_pe` / `pe_graph_grow` solids on same shots.  
-4. Yosys: physical lattice only (cite M66).  
+3. ~~Co-sim: multiplexed grow ≡ `helios_pe` / `pe_graph_grow` solids on same shots.~~ **Done M71** (software oracle, 16/16) + **M72** grow→peel; SV schedule RTL **done M74** (`Docs/Helios_n_Rtl_M74`, 16/16 ≡ oracle).  
+4. ~~Yosys: physical lattice only (cite M66).~~ **Done M74** — N_PHYS=7: 12 576 LUT / 180 RAM32M16 (`results/fpga_helios_n_lattice_m74.csv`).  
 5. Only then circuit V=392 — re-measure partition; \(n\ge\lceil392/16\rceil\) is a lower bound only.
 
 ---

@@ -105,8 +105,8 @@ Until grow RTL exists, co-sim may use **software-oracle** neighbor state (flat g
 
 ---
 
-## 6. Out of scope
+## 6. Out of scope (at M69)
 
-- Stim Helios-n `pe_graph_grow` schedule RTL / PE coloring CSV.  
+- Stim Helios-n `pe_graph_grow` schedule RTL / PE coloring CSV. *(Later: coloring CSV delivered M70; software Stages C–D passed M71/M72; SV schedule RTL still open.)*  
 - Vivado; G4 board.  
 - Claiming VU13P fit or Helios µs/round.

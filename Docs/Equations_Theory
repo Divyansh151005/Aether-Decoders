@@ -1,3 +1,5 @@
+> **Superseded in parts.** §5 Relay-BP (tanh check rule, γ ∈ (0,1), OSD fallback) is **not** what Aether implements: use Müller et al. arXiv:2506.01779 eqs. (1)–(4) — min-sum, per-node γ that may be negative, relay legs (`src/relay_bp.rs`). Growth-step bounds of d/2 are not a hardware bound (Helios O(d⁴)). See `Docs/Hardware_Mapping` §6 and the `Docs/Progress` mistakes table.
+
 To construct **Aether-Decoders** from scratch—whether in Rust, C++, or Verilog/VHDL for FPGA logic—you need a complete mathematical blueprint.
 
 The system relies on five mathematical pillars: **Algebraic Quantum Error Correction**, **Probabilistic Noise Modeling**, **Continuous Cluster Growth Dynamics**, **Homological Peeling over $\mathbb{F}_2$**, and **Relay Belief-Propagation Tensor Mechanics**.

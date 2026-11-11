@@ -1,3 +1,5 @@
+> **Historical bootstrap prompt (M1–M2).** Superseded rules: growth skips `find(u)==find(v)`; peel uses frozen `syndrome[]` (not `parity`); unique virtual boundary per degree-1 DEM error; active = odd ∧ ¬`cluster_boundary`; M10 boundary-root peel. See the `Docs/Progress` mistakes table.
+
 **System Context for Cursor:**
 You are an expert high-performance systems engineer building "Aether-Decoders", a bare-metal Union-Find Quantum Error Correction decoder written in Rust. Your goal is to map continuous topological equations into a discrete, integer-based state machine optimized for $O(1)$ cache locality.
 

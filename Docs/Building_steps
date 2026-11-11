@@ -1,3 +1,5 @@
+> **Superseded in parts.** The implementation uses **union-by-size** (not rank), λ = 1000 by default (`src/weights.rs`), skips growth on intra-cluster edges, peels from frozen `syndrome[]`, and roots each peel tree at a boundary vertex (M10). See the `Docs/Progress` mistakes table.
+
 Building the Aether-Decoder requires translating abstract topological geometry and differential equations into discrete, integer-based logic that can be compiled into software (Rust/C++) or hardware (Verilog/FPGA).
 
 Because hardware ALUs (Arithmetic Logic Units) cannot efficiently process floating-point math or continuous differential equations at sub-microsecond speeds, we must transform the continuous Union-Find equations into a **discrete, quantized integer state machine**.
