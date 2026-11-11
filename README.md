@@ -32,3 +32,60 @@ Every claim in this repository is tied to a test, a co-simulation log, or a CSV 
 | **milestones** | **Rust tests** | **result CSVs** | **RTL modules + testbenches** | **research notes** |
 
 </div>
+
+## Contents
+
+- [Architecture](#architecture)
+- [Design rules](#design-rules)
+
+## Architecture
+
+```mermaid
+flowchart TB
+    subgraph sim [Noise simulation]
+        Stim["Stim circuits / DEMs"] --> Sinter["Sinter sweeps"]
+    end
+    subgraph sw [Rust decoders: source of truth]
+        Compile["DEM compiler (graphlike, LLR weights)"] --> UF["Union-Find: grow, merge, peel over F2"]
+        CompileH["Hypergraph DEM"] --> Relay["Relay-BP: DMem-BP + relay legs"]
+        UF --> Cycle["cycle_model / helios_pe / helios_n_pe"]
+    end
+    subgraph hw [Hardware path]
+        RTL["SystemVerilog PE grid: grow, merge, peel FSM"]
+        DPI["Verilator DPI: live Rust goldens"]
+        Yosys["Yosys synth_xilinx resource sweeps"]
+        HeliosN["Helios-n time-multiplexed lattice"]
+    end
+    Stim --> Compile
+    Stim --> CompileH
+    Sinter -->|"custom decoder"| UF
+    Cycle -->|"bit-identical vectors"| RTL
+    Cycle --> DPI
+    DPI --> RTL
+    RTL --> Yosys
+    Cycle --> HeliosN
+    HeliosN --> Yosys
+```
+
+| Layer | What it is | Where |
+|---|---|---|
+| **UF core** | Flat struct-of-arrays graph, DSU with union-by-size, discrete cluster growth, peeling over F2. No `petgraph`. | `src/{graph,dsu,engine,peeling,weights}.rs` |
+| **Stim pipeline** | DEM to UF graph compiler, persistent `decode_shots` process, Sinter custom decoder, threshold sweeps vs PyMatching | `src/compiled.rs`, `python/aether_decoders/`, `scripts/threshold_sweep.py` |
+| **Relay-BP** | Min-sum DMem-BP with per-node (possibly negative) memory strength and relay legs, after Müller et al. | `src/relay_bp.rs`, `src/relay_compiled.rs` |
+| **Cycle models** | Cycle-accurate UF model plus Helios-style PE and Helios-n multiplexed PE models used as RTL oracles | `src/{cycle_model,helios_pe,helios_n_pe}.rs` |
+| **RTL** | Grow/merge, OR-tree, per-PE mesh, LUTRAM dual context, multi-cycle peel FSM, syndrome ring, observable egress, Helios-n lattice | `rtl/` |
+| **Co-sim** | Icarus and Verilator testbenches fed by generated vectors, plus a Verilator DPI bridge that calls Rust live | `rtl/tb_*.sv`, `dpi/`, `scripts/*_sim.sh` |
+| **FPGA prep** | Staged S0 to S4 Yosys `synth_xilinx` runs, bring-up gates, Vivado S0 Tcl/XDC | `fpga/`, `Docs/Fpga_Bringup_Prep` |
+
+## Design rules
+
+These were each learned from a measured bug or mismatch, and they are kept identical in software and RTL. They are not simplified for hardware.
+
+- **Active cluster** = odd defect parity **and** not touching a virtual boundary.
+- **Peel from the frozen `syndrome[]`**, never from DSU-mutated parity.
+- **Union-by-size**, and skip growth along edges whose endpoints already share a root.
+- **One unique virtual boundary vertex per degree-1 DEM error**, so opposite boundaries never get stitched together.
+- **Root a boundary-touching cluster at one boundary** and peel every other leaf, including extra virtual boundaries.
+- **Circuit Y-faults** stay as `^`-separated pieces and are split, so every piece is degree 2 or less.
+
+The full list of corrected mistakes, with the evidence for each, is in the *Mistakes and corrections* table of [`Docs/Progress`](Docs/Progress).
