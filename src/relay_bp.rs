@@ -123,17 +123,19 @@ pub fn log_prior(p: f64) -> Result<f64, RelayError> {
     Ok(((1.0 - p) / p).ln())
 }
 
-/// Seeded LCG for disordered γ draws (no external RNG dependency).
+/// Seeded SplitMix64 for disordered γ draws (no external RNG dependency).
+///
+/// The stream is not reset between `RelayBp::decode` calls, so γ draws depend on
+/// shot order within one process.
 #[derive(Clone, Debug)]
 pub struct SeedRng {
     state: u64,
 }
 
 impl SeedRng {
+    /// SplitMix64 has no forbidden state, so every seed maps to a distinct stream.
     pub fn new(seed: u64) -> Self {
-        Self {
-            state: seed | 1, // avoid zero lock
-        }
+        Self { state: seed }
     }
 
     fn next_u64(&mut self) -> u64 {
@@ -265,9 +267,9 @@ impl DMemBp {
             let synd_neg = syndrome[i] != 0;
 
             if deg == 1 {
-                // No other neighbors: product empty → κ = +1 by empty-product convention;
-                // min over empty set is undefined — leave μ = 0 (no information).
-                self.mu[start] = 0.0;
+                // Empty min over the other neighbors saturates (IBM `relay_bp` min_sum.rs
+                // seeds both minima with max_value), so the check forces its only variable.
+                self.mu[start] = if synd_neg { -f64::MAX } else { f64::MAX };
                 continue;
             }
 
@@ -606,5 +608,46 @@ mod tests {
         let r = relay.decode(&[1, 1]).unwrap();
         assert!(r.success);
         assert_eq!(r.hat_e, vec![0, 1, 0]);
+    }
+
+    #[test]
+    fn seed_rng_even_and_odd_seeds_differ() {
+        for k in 0..8u64 {
+            let mut a = SeedRng::new(2 * k);
+            let mut b = SeedRng::new(2 * k + 1);
+            assert_ne!(a.next_u64(), b.next_u64(), "seeds {} and {}", 2 * k, 2 * k + 1);
+        }
+    }
+
+    #[test]
+    fn seed_rng_odd_seed_stream_is_unchanged() {
+        // Odd seeds were already used as-is (`seed | 1 == seed`), so seed=1 runs
+        // (M14–M29 bake-offs) keep the same γ draws.
+        let mut rng = SeedRng::new(1);
+        let mut state = 1u64;
+        for _ in 0..4 {
+            state = state.wrapping_add(0x9E3779B97F4A7C15);
+            let mut z = state;
+            z = (z ^ (z >> 30)).wrapping_mul(0xBF58476D1CE4E5B9);
+            z = (z ^ (z >> 27)).wrapping_mul(0x94D049BB133111EB);
+            assert_eq!(rng.next_u64(), z ^ (z >> 31));
+        }
+    }
+
+    #[test]
+    fn degree_one_check_forces_its_variable() {
+        // c0 = {v0}, c1 = {v0, v1}; σ = [1, 1] has the unique solution e = [1, 0].
+        let g = TannerGraph::from_columns(2, &[vec![0, 1], vec![1]]).unwrap();
+        let lp = vec![log_prior(0.4).unwrap(), log_prior(0.001).unwrap()];
+        let mut bp = DMemBp::new(g, lp, vec![0.0; 2], 10).unwrap();
+        bp.init_messages(None).unwrap();
+        let (_, ok) = bp.run(&[1, 1]).unwrap();
+        assert!(ok);
+        assert_eq!(bp.hat_e(), &[1, 0]);
+
+        bp.init_messages(None).unwrap();
+        let (_, ok) = bp.run(&[0, 1]).unwrap();
+        assert!(ok);
+        assert_eq!(bp.hat_e(), &[0, 1]);
     }
 }
