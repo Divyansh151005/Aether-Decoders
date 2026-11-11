@@ -41,6 +41,9 @@ Every claim in this repository is tied to a test, a co-simulation log, or a CSV 
 - [Quickstart](#quickstart)
 - [Milestone journey](#milestone-journey)
 - [Repository layout](#repository-layout)
+- [Research notes](#research-notes)
+- [Roadmap](#roadmap)
+- [References](#references)
 
 ## Architecture
 
@@ -277,3 +280,49 @@ Aether-Decoders/
 | `gen_rtl_vectors`, `gen_stim_rtl_vectors`, `gen_helios_n_rtl_vectors` | Golden vectors for RTL testbenches |
 | `helios_n_grow_cosim`, `helios_n_decode_cosim` | Helios-n multiplexed oracles vs the flat model |
 | `count_uf_decode_errors` | Abort and decode-error rate measurement |
+
+## Research notes
+
+[`Docs/`](Docs) holds a note for nearly every milestone. Good starting points:
+
+| Note | Read it for |
+|---|---|
+| [`Progress`](Docs/Progress) | Source of truth: milestone table, results, corrected mistakes, next steps |
+| [`Blueprint`](Docs/Blueprint), [`Peeling_algo_example`](Docs/Peeling_algo_example) | The UF algorithm with a worked peeling example |
+| [`Equations_Theory`](Docs/Equations_Theory), [`Maths_involved`](Docs/Maths_involved) | Parity checks, syndromes, and decoder math |
+| [`Hardware_Mapping`](Docs/Hardware_Mapping) | How the SoA software maps onto Helios-style PEs and memories |
+| [`Fpga_Bringup_Prep`](Docs/Fpga_Bringup_Prep) | S0 to S5 bring-up stages and G1 to G6 gates |
+| [`Helios_n_Multiplex_M67`](Docs/Helios_n_Multiplex_M67) to [`Helios_n_Circuit_M76`](Docs/Helios_n_Circuit_M76) | The time-multiplexed design, from partitioning to circuit-scale maps |
+| [`Overview`](Docs/Overview) | The original vision document. Parts are superseded; see the banner at its top |
+
+## Roadmap
+
+- [x] Correct integer Union-Find with Stim, Sinter, and PyMatching comparisons
+- [x] Relay-BP with matched-shot qLDPC bake-offs
+- [x] Bit-identical RTL co-simulation up to circuit-level V=392 graphs
+- [x] Yosys resource sweeps and the flat-mesh cliff
+- [x] Helios-n multiplexed RTL matching its oracle 16/16
+- [ ] Vivado S0 on a Linux host: utilization and WNS, then post-synth simulation of the S3 host top
+- [ ] Synthesizable Helios-n merge, required before a full-core Vivado run
+- [ ] More efficient circuit-scale Helios-n mapping than M76's 165 parts
+- [ ] Re-run the M29 BP+OSD point before citing the pooled Relay-BP result
+- [ ] CPU MWPM fallback for unresolved shots and streaming sliding-window decode
+
+## References
+
+- N. Delfosse, N. H. Nickerson, *Almost-linear time decoding algorithm for topological codes*, [arXiv:1709.06218](https://arxiv.org/abs/1709.06218)
+- S. Huang, M. Newman, K. R. Brown, *Fault-tolerant weighted union-find decoding on the toric code*, [arXiv:2004.04693](https://arxiv.org/abs/2004.04693)
+- Helios FPGA Union-Find decoder, [arXiv:2406.08491](https://arxiv.org/abs/2406.08491)
+- T. Müller et al., *Relay-BP*, [arXiv:2506.01779](https://arxiv.org/abs/2506.01779)
+- S. Bravyi et al., *High-threshold and low-overhead fault-tolerant quantum memory*, [arXiv:2308.07915](https://arxiv.org/abs/2308.07915)
+- C. Gidney, *Stim: a fast stabilizer circuit simulator*, [arXiv:2103.02202](https://arxiv.org/abs/2103.02202), and [Sinter](https://github.com/quantumlib/Stim/tree/main/glue/sample)
+- O. Higgott, C. Gidney, *Sparse Blossom* ([PyMatching](https://github.com/oscarhiggott/PyMatching)), [arXiv:2303.15933](https://arxiv.org/abs/2303.15933)
+- [`ldpc`](https://github.com/quantumgizmos/ldpc) for the BP+OSD baseline
+
+## License
+
+Released under the [MIT License](LICENSE).
+
+<div align="center">
+<sub>Software-first, evidence-driven decoding for fault-tolerant quantum computing · built by <a href="https://github.com/Divyansh151005">Divyansh Barodiya</a></sub>
+</div>
