@@ -38,6 +38,7 @@ Every claim in this repository is tied to a test, a co-simulation log, or a CSV 
 - [Architecture](#architecture)
 - [Design rules](#design-rules)
 - [Results](#results)
+- [Quickstart](#quickstart)
 
 ## Architecture
 
@@ -153,3 +154,72 @@ Relay-BP has fewer errors at every matched point, but the intervals separate at 
 | **Helios-n lattice, N_PHYS = 7** | **12 576** | **384** | **M74**, plus 180 RAM32M16 |
 
 The flat PE mesh stops synthesizing past N = 16, which is why the project moved to **Helios-n** time multiplexing (M67 to M76). These are Yosys estimates. Vivado utilization and timing on the target part are the next milestone.
+
+## Quickstart
+
+### Prerequisites
+
+| Tool | Needed for |
+|---|---|
+| Rust (stable, 2021 edition) | everything |
+| Python 3.10+ with `pip install -r python/requirements.txt` (Stim, Sinter, PyMatching, `ldpc`) | Stim sweeps and bake-offs |
+| [Icarus Verilog](https://github.com/steveicarus/iverilog) | Blueprint and Stim RTL co-sim |
+| [Verilator](https://www.veripool.org/verilator/) 5.x | large co-sims, DPI, Helios-n RTL |
+| [Yosys](https://github.com/YosysHQ/yosys) | FPGA resource scripts in `fpga/` |
+
+### Build and test
+
+```bash
+git clone https://github.com/Divyansh151005/Aether-Decoders.git
+cd Aether-Decoders
+cargo test --workspace --release        # 17 unit + 11 integration tests
+```
+
+### Decode Stim shots with Union-Find
+
+```bash
+cargo build --release --bin decode_shots
+# dem.json: graphlike DEM from python/aether_decoders/dem.py
+# shots.txt: one 0/1 detector string per line
+./target/release/decode_shots dem.json shots.txt   # prints observable bits per shot
+```
+
+### Use it as a Sinter decoder
+
+```python
+# run with PYTHONPATH=python so Sinter workers can import the decoder
+import sinter
+from aether_decoders import AetherUfDecoder
+
+stats = sinter.collect(
+    tasks=tasks,                          # list[sinter.Task] built from Stim circuits
+    decoders=["aether_uf"],
+    custom_decoders={"aether_uf": AetherUfDecoder()},
+    num_workers=2,
+    max_shots=1200,
+)
+```
+
+```bash
+PYTHONPATH=python python3 scripts/stim_surface_code_smoke.py   # UF vs PyMatching smoke
+PYTHONPATH=python python3 scripts/threshold_sweep.py --noise circuit --distances 3,5,7 \
+  --ps 0.001,0.002,0.003 --max-shots 1200 --max-errors 1000000000 --workers 2 --out results/my_sweep.csv
+```
+
+### Relay-BP vs BP+OSD on bivariate-bicycle codes
+
+```bash
+python3 scripts/relay_bb_bakeoff.py --help   # circuits live in testdata/bicycle_bivariate/
+```
+
+### Hardware co-simulation
+
+```bash
+./scripts/rtl_decode_sim.sh         # Icarus: grow -> merge -> peel vs Rust goldens (8/8)
+./scripts/pe_mesh_stim_r3_sim.sh    # PE-mesh on a Stim phenom d=3 r=3 graph
+./scripts/dpi_rtl_cosim.sh          # Verilator DPI with live Rust goldens
+./scripts/helios_n_rtl_m74_sim.sh   # Helios-n schedule RTL vs oracle (16/16), about 2 min
+```
+
+> [!NOTE]
+> Write new measurements to new CSV names. Files in `results/` are cited by milestone and must not be overwritten.
