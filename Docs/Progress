@@ -2,7 +2,7 @@
 
 Living status file. **Update this document at the end of every implementation session** before claiming a milestone. Do not let chat history replace it.
 
-Last updated: 2026-08-27 (M72 Helios-n Stage D decode co-sim)
+Last updated: 2026-11-01 (M74–M76 Helios-n RTL, G4 scoped netlist, circuit map)
 
 ---
 
@@ -89,6 +89,10 @@ Real-time FTQC decoder: FPGA Union-Find for surface codes, Relay-BP for qLDPC, C
 | M70 | Helios-n PE coloring (phenom r=3) | `results/helios_n_coloring_m70.csv` — 7 phys; n_parts=16; M68 infeasible |
 | M71 | Helios-n grow co-sim vs flat M44 | `results/helios_n_grow_cosim_m71.csv` — 16/16 solids+cycles ≡ flat |
 | M72 | Helios-n Stage D peel co-sim vs M45 | `results/helios_n_decode_cosim_m72.csv` — 16/16 corr+peel_ops ≡ cosim |
+| M73 | Workspace recovery + baseline re-verify + housekeeping | Restored from GitHub; `cargo test` 17+11; RTL/DPI/PE-mesh/M71/M72 re-run PASS (M71/M72 CSVs byte-identical); Relay `SeedRng` + degree-1 check fixes |
+| M74 | Helios-n SV schedule RTL (M70 map) + lattice-only Yosys | `Docs/Helios_n_Rtl_M74` — 16/16 grow→peel ≡ M71/M72 oracle (Verilator+Icarus, `total_clk=3425380`, 34 clk/iter); lattice N_PHYS=7: 12 576 LUT / 384 FF / 180 RAM32M16 (`results/fpga_helios_n_lattice_m74.csv`) |
+| M75 | Synthesizable obs egress + scoped G4 + Vivado S0 Tcl/XDC | `Docs/G4_S3_Netlist_M75` — obs egress Yosys 3 645 LUT; S3 host path RTL 8/8 + host-shell netlist (Yosys cells) + RTL core 8/8 (`results/fpga_s3_host_m75.csv`); Vivado not run (macOS) |
+| M76 | Circuit V=392 Helios-n map + peel decision + pooled Relay | `Docs/Helios_n_Circuit_M76` — 165 parts / 16 PEs ≡ M71/M72 oracle 16/16; flat peel kept; pooled M27+M29 Relay 164/800 vs OSD 230/800 (Wilson disjoint @ p=0.005 only) |
 
 ---
 
@@ -108,7 +112,7 @@ Real-time FTQC decoder: FPGA Union-Find for surface codes, Relay-BP for qLDPC, C
 - Helios PE grow/merge + RTL peel + Stim harness through phenom d=5 r=5 (M23) and circuit d=3 r=3 (M24); Verilator 5.050 for large co-sim.
 - Research notes: `Docs/Rtl_Scale_Research`, `Docs/Rtl_Dpi_Research`.
 - DPI crate `dpi/` (`aether_uf_dpi` cdylib) + `scripts/dpi_rtl_cosim.sh` (M26) + `scripts/stim_dpi_cosim.sh` (M28).
-- PE-grid prep: S0–S3 Yosys; M65–M71 cliff/schedule/coloring/grow; **M72** Helios-n Stage D ≡ `decode_cosim` (`helios_n_decode_cosim_m72.csv`); bake-off heartbeats.
+- PE-grid prep: S0–S3 Yosys; M65–M71 cliff/schedule/coloring/grow; **M72** Helios-n Stage D ≡ `decode_cosim` (`helios_n_decode_cosim_m72.csv`); **M74** Helios-n SV schedule RTL (`rtl/aether_uf_helios_n_{lattice,grow}.sv`, `scripts/helios_n_rtl_m74_sim.sh`) + lattice-only Yosys; **M75** synthesizable obs egress + S3 host path (`scripts/g4_s3_netlist_m75.sh`); **M76** circuit Helios-n map (`--noise circuit`), `scripts/pool_relay_seeds.py`; bake-off heartbeats.
 - Agent workflow rule (always apply): `.cursor/rules/aether-deterministic.mdc` — research repos/papers/docs each step, trade-offs, tooling scan, test after each step, Progress as source of truth; long-job heartbeats.
 - This progress log.
 
@@ -262,9 +266,11 @@ PYTHONPATH=python python3 scripts/threshold_sweep.py --noise circuit --distances
 
 ## Planned next (priority order)
 
-1. **Next:** SV Helios-n schedule + `pe_graph_grow` #(N≤16, N_CTX≥16) **or** Vivado S0 on Linux **or** G4 S3 netlist sim. Third seed @ p=0.005 only if ranking required (M29 overlap).
-2. PyO3 only if required.
-3. Full PE-grid FPGA bring-up after Vivado S0 (or Progress override) + G4 — multiplex per M67–M72; **not** flat PE above N16.
+1. **Next:** Vivado S0 on a Linux host (`fpga/s0/vivado_s0.tcl` + `s0_clocks.xdc`) → new `results/` CSV with util + WNS; same host: Vivado post-synth functional sim of the full S3 host top (closes gate-level G4).
+2. Synthesizable Helios-n merge (multi-cycle ordered union or Helios distributed cid flooding with its own oracle) — required before Helios-n full-core Yosys/Vivado; record trade-off vs bit-identity.
+3. Circuit Helios-n mapping efficiency (M76: 165 parts): decide between boundary-piece merging with re-validated goldens vs larger N_PHYS; no Heer-style ports without a paper.
+4. Re-run M29 BP+OSD (identical 115/400 in both seeds) before citing the pooled M76 Relay result; fitted p_th only if needed (hours).
+5. PyO3 only if required.
 
 ---
 
@@ -302,6 +308,12 @@ PYTHONPATH=python python3 scripts/threshold_sweep.py --noise circuit --distances
 | Using time-only Helios partition for Aether phenom r=3 at N_phys=16 | M68: mid times \|S\|=28>16 once boundaries attach; use **intra_time_det_pack** (n=6, max=14) — `helios_n_partition_m68.csv`. |
 | Treating part index as physical PE id for Helios-n | M69: cross-cut pairs must **colocate** on one physical PE (Helios); need coloring map before Stim grow RTL. |
 | Using M68 n=6 parts as Helios-n schedule under colocation | M70: M68 pack is **colocation-infeasible** (transitive). Use `det_comp_paired` n=16 / 7 phys (`helios_n_coloring_m70.csv`). |
+| Keeping the workspace on iCloud-synced `~/Desktop` | M73: files were evicted/lost (Progress, results/, dpi/src, testdata) and `.git` objects went missing; reads of evicted `target/` files block. Recover from GitHub; keep the repo outside iCloud. |
+| `scripts/push_to_github.sh` (force-push rebuilt history, `rm -rf` workspace `.git`) | M73: removed with `git_push_history.sh` / `build_git_history.py`. Use normal `git commit` + `git push`. |
+| `SeedRng::new(seed \| 1)` | M73: seeds 2k and 2k+1 collided. SplitMix64 has no forbidden state → `state = seed`; odd seeds (all cited bake-offs used seed=1) unchanged. |
+| Indexing generator Helios-n tables with DUT params | M74: generator rows are `k*HN_SLOTS+s` / `k*HN_NPHYS+p`; DUT uses `SLOTS`/`N_PHYS` — TB must remap (else writebacks miss and grow never terminates). |
+| Treating n ≥ ⌈392/16⌉ = 25 as an achievable circuit Helios-n part count | M76: unique boundaries (≤35 per detector) × transitive colocation ⇒ M70 schemes infeasible; feasible overflow map needs **165** parts. 25 is only a lower bound. |
+| Relay min-sum degree-1 check sending μ=0 | M73: IBM `relay_bp` min_sum.rs seeds minima with `max_value` ⇒ μ = ±MAX (syndrome sign). No cited BB DEM has a degree-1 detector, so M14–M29 unaffected. |
 
 ---
 
@@ -807,3 +819,34 @@ PYTHONPATH=python python3 scripts/threshold_sweep.py --noise circuit --distances
 - Research: M69 Stage D; Helios-n grow + software peel (not multiplexed peel); `peel_cosim_stats` ≡ M45 peel_ops.
 - Evidence: `results/helios_n_decode_cosim_m72.csv` — **16/16** corr+peel_ops ≡ `decode_cosim`; `Docs/Helios_n_Decode_Cosim_M72`; `scripts/helios_n_decode_cosim_m72.sh`; `cargo test` 14+11.
 - Not claimed: Helios-n SV schedule RTL; Vivado; Helios µs/round.
+
+### 2026-11-01 — M73 workspace recovery + baseline + housekeeping
+
+- Audit: local workspace (iCloud `~/Desktop`) had lost `Docs/Progress`, all `results/*.csv`, `dpi/src/lib.rs`, READMEs, 9 BB `.stim` files, `rtl/gen/stim_cases*.sv`; `.git` had missing objects (index empty). No local file was newer than the 2026-09-01 push; GitHub blanked `Docs/Analysis` + `Docs/Peeling_algo_example` (local copies intact).
+- Recovery: file-level backup `../Aether-Decoders.backup-20261101` (excl. `target/`, `obj_dir*`); fresh clone overlaid in place; intact local docs restored; stale `target/` + `obj_dir*` moved to `../.aether_stale_build`. `.venv` = pyenv 3.10.13 + system site (stim 1.16, pymatching 2.4, ldpc 2.4.1).
+- Baseline: `cargo test` 14+11; `rtl_decode_sim` 8/8; `dpi_rtl_cosim` 8/8; `pe_mesh_stim_r3_decode_sim` 4/4 (Icarus+Verilator); M71 + M72 16/16 with **byte-identical** CSVs (`git diff` empty).
+- Fixes: `SeedRng` seed collision; degree-1 check μ=±MAX (IBM `relay_bp` min_sum.rs). +3 unit tests → `cargo test` 17+11. Checked all 10 BB DEMs: 0 degree-1 detectors ⇒ cited Relay CSVs unaffected; not re-run.
+- Docs: superseded banners on Overview / Analysis / Equations_Theory / Building_steps / Blueprint; status refresh in Hardware_Mapping, Fpga_Bringup_Prep, M67, M69, Pe_Grid_Prep, Host_IO_H10, Next_Choice_M27. Removed history-rewrite push scripts.
+- Not claimed: new LER numbers; any FPGA result.
+
+### 2026-11-01 — M74 Helios-n SV schedule RTL + lattice Yosys
+
+- Research: M67 steps 3–4, M69 FSM, M70 map; Helios arXiv:2406.08491 multi-context PEs. Kept the merge central + ordered (software tie rule) for bit-identity; Helios-style distributed cid flooding deferred (different union order, needs its own oracle).
+- Build: `rtl/aether_uf_helios_n_lattice.sv` (per-PE context bank, per-slot growth bank, FF clear masks) + `rtl/aether_uf_helios_n_grow.sv` (WB → CHECK → GROW → MERGE) + `tb_aether_uf_helios_n_decode.sv`; vectors from `gen_helios_n_rtl_vectors` (every case re-gated by M71 ≡ flat and M72 ≡ decode_cosim).
+- Evidence: `scripts/helios_n_rtl_m74_sim.sh` → `ALL 16 HELIOS-N DECODE CASES PASS … total_clk=3425380` (Verilator, TB 16×16; Icarus at M70 config 7×12 same 16/16 + total_clk, `HN_ICARUS=1`, ~30 min); clk = 34·iters + 18. Yosys lattice-only (`fpga/scale/run_yosys_helios_n_lattice_m74.sh`): N_PHYS=7/N_CTX=16/SLOTS=12 → 12 576 LUT, 384 FF, 180 RAM32M16 (~60 s); N_PHYS=16/16/16 → 15 626 LUT, 512 FF, 528 LUTRAM (~80 s). Cite M61 flat N16 138 502 LUT; M66 flat N24 ABC timeout.
+- Not claimed: synthesizable central merge (behavioral single-cycle find loops); multiplexed peel; circuit V=392; Vivado timing; Helios µs/round.
+
+### 2026-11-01 — M75 synthesizable obs egress + scoped G4 + Vivado prep
+
+- Research: G4 definition (`Docs/Fpga_Bringup_Prep`); Helios §Implementation choice for the 100 MHz XDC clock; Yosys `cells_sim.v` for gate-level sim.
+- Build: `aether_uf_obs_egress` packed `obs_mask_bus` + one edge/clock (h10_obs_stim_sim 4/4 Icarus+Verilator); `rtl/aether_uf_s3_host_top.sv` (ring → sequencer → decode_s3 → obs) + `tb_aether_uf_s3_host.sv`; `scripts/g4_s3_netlist_m75.sh`.
+- Evidence: RTL 8/8; host-shell netlist (778 LUT / 177 FF, decode core blackboxed) + RTL core 8/8; full top Yosys 154 933 LUT / 10 461 FF / 259 767 cells in 1 370 s but netlist sim infeasible here (Verilator frontend > 30 min, Icarus `ivl` SIGKILL) — `results/fpga_s3_host_m75.csv`. `fpga/s0/vivado_s0.tcl` extended to OOC synth→route + WNS; `fpga/s0/s0_clocks.xdc`.
+- Not claimed: Vivado util/timing (not installed); gate-level decode core; board G4.
+
+### 2026-11-01 — M76 circuit Helios-n map + peel decision + pooled Relay
+
+- Research: M67 step 5; Helios §III-D-a (correction from parenthood tree); circuit graph stats (D=24, 368 degree-1 pieces, ≤35 per detector).
+- Build: `scripts/helios_n_coloring_m70.py --noise circuit --prefix …` + fallback `det_comp_paired_overflow` (phenom outputs byte-identical to cited M70 CSVs); `scripts/pool_relay_seeds.py`.
+- Evidence: `results/helios_n_coloring_circuit_m76*.csv` (165 parts, 16 PEs, cross=374); `helios_n_grow_cosim_circuit_m76.csv` + `helios_n_decode_cosim_circuit_m76.csv` 16/16 ≡ flat / decode_cosim; `relay_bb_pooled_m76.csv` Relay 164/800 [0.1785, 0.2344] vs OSD 230/800 [0.2572, 0.3198].
+- Decision: keep flat multi-cycle peel after multiplexed grow; Helios parenthood-tree correction needs distributed merge + own oracle.
+- Not claimed: efficient circuit mapping; multiplexed peel RTL; seed-independent Relay superiority beyond p=0.005; fitted p_th.
